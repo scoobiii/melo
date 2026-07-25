@@ -57,7 +57,7 @@ pytest -k adaptation  # roda só um módulo
 ```
 
 <!-- BEGIN:TESTCOUNT -->
-Estado atual: 76 testes, 100% passando.
+Estado atual: 89 testes, 100% passando.
 <!-- END:TESTCOUNT --> `tests/integration` e
 `tests/regression` existem como diretórios mas ainda não têm testes —
 próximo débito técnico a endereçar (o pipeline foi validado manualmente
