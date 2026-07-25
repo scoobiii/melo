@@ -1,0 +1,8 @@
+-r base.txt
+torch
+torchaudio
+transformers
+accelerate
+sentencepiece
+openai-whisper
+faster-whisper

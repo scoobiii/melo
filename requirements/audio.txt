@@ -1,0 +1,8 @@
+-r base.txt
+ffmpeg-python
+mutagen
+librosa
+soundfile
+audioread
+pydub
+matplotlib

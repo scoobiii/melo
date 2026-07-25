@@ -1,15 +1,32 @@
+.PHONY: setup sprint1 lint format typecheck test coverage clean
+
 setup:
-\tpython -m venv .venv
+	python -m venv .venv
+	. .venv/bin/activate && python -m pip install -U pip
+
+sprint1:
+	bash scripts/sprint1.sh
 
 lint:
-\truff check .
+	ruff check .
 
 format:
-\tblack .
+	black .
+
+typecheck:
+	mypy packages
 
 test:
-\tpytest
+	pytest
 
 coverage:
-\tcoverage run -m pytest
-\tcoverage report
+	pytest --cov=packages --cov-report=term --cov-report=html
+
+clean:
+	rm -rf .pytest_cache
+	rm -rf .mypy_cache
+	rm -rf .ruff_cache
+	rm -rf htmlcov
+	rm -f .coverage
+	find . -name "__pycache__" -type d -exec rm -rf {} +
+	find . -name "*.pyc" -delete

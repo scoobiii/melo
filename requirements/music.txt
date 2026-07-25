@@ -1,0 +1,5 @@
+-r audio.txt
+basic-pitch
+pretty-midi
+mido
+music21

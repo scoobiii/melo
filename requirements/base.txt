@@ -1,0 +1,7 @@
+numpy
+scipy
+pydantic
+python-dotenv
+pyyaml
+tqdm
+requests

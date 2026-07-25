@@ -1,0 +1,10 @@
+-r audio.txt
+-r ai.txt
+-r music.txt
+-r test.txt
+ruff
+black
+mypy
+pre-commit
+mkdocs
+mkdocs-material
