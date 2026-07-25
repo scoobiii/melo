@@ -33,10 +33,12 @@ via `numpy`/`scipy` puro (`packages/adaptation/features.py`) em vez de
 packages/
 ├── audio/        # I/O e metadados de áudio (soundfile)
 ├── lyrics/       # transcrição via Whisper (import lazy, opcional)
-├── adaptation/   # BPM + tabela de correlação de gênero panamá↔brasil
+├── adaptation/   # BPM + correlação de gênero panamá↔brasil + segmentação de letra
+├── catalog/      # persistência SQLite: artistas, produtores, faixas, vozes,
+                   # mapeamento de segmentos, wiring de tradução de gênero (translation.py)
 ├── pipeline/     # orquestra audio+lyrics+adaptation numa chamada
 ├── publisher/    # split/payout de royalty (percentuais não hardcoded)
-├── ai/           # não implementado
+├── ai/           # adapter de letra via LLM (prompt building, parsing, retries)
 ├── prompts/      # não implementado
 ├── score/        # não implementado (arranjo/partitura)
 └── voices/       # não implementado
@@ -53,7 +55,7 @@ make coverage       # roda com --cov
 pytest -k adaptation  # roda só um módulo
 ```
 
-Estado atual: 32 testes, 100% passando. `tests/integration` e
+Estado atual: 68 testes, 100% passando. `tests/integration` e
 `tests/regression` existem como diretórios mas ainda não têm testes —
 próximo débito técnico a endereçar (o pipeline foi validado manualmente
 contra 1 arquivo de áudio real, não há teste de integração automatizado

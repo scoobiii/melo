@@ -14,13 +14,15 @@ automatizado). Ver [ROADMAP.md](./ROADMAP.md).
 | Módulo | O que faz | Testes |
 |---|---|---|
 | `packages/audio` | Metadados de áudio (duração, sample rate, canais) | 2 |
-| `packages/lyrics` | Transcrição de letra via Whisper (local) | 4 |
-| `packages/adaptation` | Estimativa de BPM + correlação de gênero panamá↔brasil | 14 |
+| `packages/lyrics` | Transcrição de letra via Whisper (local) | 5 |
+| `packages/adaptation` | Estimativa de BPM, correlação de gênero panamá↔brasil e segmentação de letra | 24 |
+| `packages/catalog` | Persistência (SQLite) de artistas/produtores/faixas/vozes + wiring de tradução de gênero | 15 |
 | `packages/pipeline` | Orquestra audio → adaptation → lyrics numa chamada só | 4 |
 | `packages/publisher` | Motor de split/payout de royalty (percentuais negociados fora do código) | 8 |
-| `packages/ai`, `prompts`, `score`, `voices` | Ainda não implementados | 0 |
+| `packages/ai` | Adaptação de letra via LLM (prompt building, parsing, retries) | 10 |
+| `packages/prompts`, `score`, `voices` | Ainda não implementados | 0 |
 
-**Total: 32 testes, suíte 100% verde.**
+**Total: 68 testes, suíte 100% verde.**
 
 ## Quickstart
 

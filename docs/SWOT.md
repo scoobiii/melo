@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Versão** | 1.0.0 |
+| **Versão** | 1.1.0 |
 | **Data** | 2026-07-25 |
 | **Baseado em** | README.md, ROADMAP.md (commit 99cd3ea), estado real de `packages/` |
 | **Próxima revisão sugerida** | ao concluir qualquer item da Fase 1 do ROADMAP, ou a cada 90 dias |
@@ -34,8 +34,9 @@ Escala 1–3, onde 1 = vago/mínimo, 2 = parcial, 3 = completo e testado.
 | Licenciamento automatizado (Fase 3) | 3 | 0 | 100% |
 | Docs (`ROADMAP`/`BUSINESS_PLAN`) | 3 | 3 | 0% |
 
-**Total: 29 pontos prometidos, 19 entregues → 34% de gap geral para 3/3 em
-tudo.**
+**Total: 31 pontos prometidos, 22 entregues → 29% de gap geral para 3/3 em
+tudo** (revisão 1.1.0: soma inclui persistência/catálogo, promessa 2,
+entrega 3 — item implícito no README original, não pontuado na v1.0.0).
 
 Essa média mascara o que importa: os módulos em 3/3 são a parte **fácil**
 (análise). Os três em 0 são o **coração da proposta de valor** (gerar áudio
@@ -44,8 +45,10 @@ completude real do produto está mais perto de **20–25%**, não 66%.
 
 ## Forças
 
-- Núcleo de análise 100% testado (41 testes verdes: 32 originais + 9 do
-  adapter de IA).
+- Núcleo de análise 100% testado (68 testes verdes), agora incluindo
+  persistência real (`packages/catalog`: artistas, produtores, faixas,
+  vozes) e wiring de tradução de gênero (`packages/catalog/translation.py`),
+  além do adapter de IA.
 - Consciência legal explícita desde o README, evitando risco jurídico
   grosseiro em geração de voz/regravação.
 - CI real (lint → test → build), rodando em ambiente compatível
@@ -91,3 +94,4 @@ problema errado primeiro.
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0.0 | 2026-07-25 | Primeira versão, cobrindo estado do repo até commit 99cd3ea + addon de IA/prompts/CI |
+| 1.1.0 | 2026-07-25 | Atualiza contagem de testes (68), adiciona `packages/catalog` (persistência real + wiring de tradução de gênero) ao score, corrige README/DEVOPS/BUSINESS_PLAN que descreviam persistência como inexistente |

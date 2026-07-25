@@ -88,11 +88,13 @@ internamente, o que reforça o tamanho real do investimento da Fase 1.
 - **Dependência de dados**: correlação de gênero panamá↔brasil precisa de
   dataset representativo; `datasets/` está presente na estrutura mas o
   conteúdo não foi auditado aqui.
-- **Ausência de persistência**: não há camada de banco (relacional ou
-  vetorial) no projeto hoje — `output/` é só JSON em arquivo. Qualquer
-  feature que dependa de "lembrar" dados entre execuções (base de
-  cantores, score histórico, catálogo de faixas) precisa dessa camada
-  antes de existir.
+- **Persistência parcial**: `packages/catalog` já resolve isso para
+  artistas (origem/destino), produtores, faixas (metadados, bpm,
+  instrumentos, partitura) e vozes detectadas, via SQLite local — deixou
+  de ser um bloqueador. O que ainda falta: score histórico de qualidade
+  (depende de `packages/score`, não implementado) e persistência de
+  execuções completas do pipeline (`output/` continua sendo JSON solto por
+  execução, não referenciado de volta ao catálogo).
 - **Nenhuma interface de usuário existe ainda**: `apps/web`, `apps/mobile`,
   `apps/cli` são pastas vazias. Não há player nem gerenciador de arquivo —
   qualquer demonstração hoje é via linha de comando.
