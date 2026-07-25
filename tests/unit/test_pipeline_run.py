@@ -8,16 +8,29 @@ import soundfile as sf
 from packages.pipeline.run import run_pipeline
 
 
+class _FakeSegment:
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeInfo:
+    language = "pt"
+
+
 class _FakeModel:
-    def transcribe(self, path, language=None, verbose=False):
-        return {"text": "letra falsa de teste"}
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def transcribe(self, path, language=None, **kwargs):
+        segments = [_FakeSegment("letra falsa de teste")]
+        return segments, _FakeInfo()
 
 
 @pytest.fixture
 def fake_whisper(monkeypatch):
-    fake_module = types.ModuleType("whisper")
-    fake_module.load_model = lambda modelo: _FakeModel()
-    monkeypatch.setitem(sys.modules, "whisper", fake_module)
+    fake_module = types.ModuleType("faster_whisper")
+    fake_module.WhisperModel = _FakeModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_module)
     return fake_module
 
 

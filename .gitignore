@@ -15,3 +15,4 @@ collect_*.sh
 fix_*.sh
 show_*.sh
 melo_diagnostico.txt
+whisper.cpp/
