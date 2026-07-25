@@ -12,6 +12,11 @@ Modelo de dados:
 - destination_artists: candidatos locais por gênero de destino (brasil)
 - segment_mappings: liga um segmento de uma faixa a um artista de destino
   e registra que tipo de transformação foi aplicada (direta ou criativa)
+- produtores / faixas / vozes_detectadas: catálogo de faixas já
+  processadas, com metadados de instrumentos, partitura e voz detectada
+- mixes / mix_tracks: um arquivo de DJ contém N faixas de N artistas
+  diferentes; royalty só faz sentido calculado por mix_track identificada,
+  nunca pelo mix inteiro como se fosse uma obra única
 
 Este módulo é a peça que faltava para o pipeline deixar de perder estado
 entre execuções — hoje o pipeline só grava JSON solto em output/.
@@ -89,6 +94,35 @@ CREATE TABLE IF NOT EXISTS vozes_detectadas (
     genero_vocal TEXT,
     confianca REAL
 );
+
+-- Um mix de DJ é um arquivo contendo N faixas de N artistas/gravadoras
+-- diferentes. Royalty só faz sentido calculado por mix_track identificada,
+-- nunca pelo mix inteiro como se fosse uma obra única.
+CREATE TABLE IF NOT EXISTS mixes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dj_nome TEXT NOT NULL,
+    arquivo_path TEXT NOT NULL UNIQUE,
+    duracao_segundos REAL,
+    -- plataformas onde o DJ declara distribuir/monetizar este mix.
+    -- Preenchido por DECLARAÇÃO do próprio DJ no cadastro, nunca por
+    -- coleta automatizada de dados de terceiro.
+    plataformas_distribuicao TEXT  -- JSON list como texto: ["youtube", "soundcloud"]
+);
+
+CREATE TABLE IF NOT EXISTS mix_tracks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mix_id INTEGER NOT NULL REFERENCES mixes(id),
+    track_indice INTEGER NOT NULL,
+    inicio_segundos REAL NOT NULL,
+    fim_segundos REAL,
+    status_identificacao TEXT NOT NULL DEFAULT 'nao_identificado',
+        -- 'nao_identificado' | 'identificado' | 'identificacao_incerta'
+    titulo_identificado TEXT,
+    source_artist_id INTEGER REFERENCES source_artists(id),
+    fingerprint_servico TEXT,
+    fingerprint_confianca REAL,
+    UNIQUE(mix_id, track_indice)
+);
 """
 
 
@@ -154,6 +188,29 @@ class VozDetectada:
     perfil_vocal: Optional[str]
     genero_vocal: Optional[str]
     confianca: Optional[float]
+
+
+@dataclass(frozen=True)
+class Mix:
+    id: int
+    dj_nome: str
+    arquivo_path: str
+    duracao_segundos: Optional[float]
+    plataformas_distribuicao: Optional[str]  # JSON como texto
+
+
+@dataclass(frozen=True)
+class MixTrack:
+    id: int
+    mix_id: int
+    track_indice: int
+    inicio_segundos: float
+    fim_segundos: Optional[float]
+    status_identificacao: str
+    titulo_identificado: Optional[str]
+    source_artist_id: Optional[int]
+    fingerprint_servico: Optional[str]
+    fingerprint_confianca: Optional[float]
 
 
 class CatalogStore:
@@ -454,3 +511,113 @@ class CatalogStore:
                 (faixa_id,),
             ).fetchall()
         return [VozDetectada(**dict(r)) for r in rows]
+
+    # ---- mixes (arquivos de DJ com múltiplas faixas) ----
+
+    def add_mix(
+        self,
+        dj_nome: str,
+        arquivo_path: str,
+        duracao_segundos: float | None = None,
+        plataformas_distribuicao: list[str] | None = None,
+    ) -> int:
+        plataformas_json = (
+            json.dumps(plataformas_distribuicao) if plataformas_distribuicao else None
+        )
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO mixes
+                   (dj_nome, arquivo_path, duracao_segundos, plataformas_distribuicao)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(arquivo_path) DO UPDATE SET
+                       dj_nome=excluded.dj_nome,
+                       duracao_segundos=excluded.duracao_segundos,
+                       plataformas_distribuicao=excluded.plataformas_distribuicao
+                   RETURNING id""",
+                (dj_nome, arquivo_path, duracao_segundos, plataformas_json),
+            )
+            return cur.fetchone()["id"]
+
+    def get_mix_by_path(self, arquivo_path: str) -> Optional[Mix]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM mixes WHERE arquivo_path = ?", (arquivo_path,)
+            ).fetchone()
+        return Mix(**dict(row)) if row else None
+
+    def add_mix_track(
+        self,
+        mix_id: int,
+        track_indice: int,
+        inicio_segundos: float,
+        fim_segundos: float | None = None,
+    ) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO mix_tracks
+                   (mix_id, track_indice, inicio_segundos, fim_segundos)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(mix_id, track_indice) DO UPDATE SET
+                       inicio_segundos=excluded.inicio_segundos,
+                       fim_segundos=excluded.fim_segundos
+                   RETURNING id""",
+                (mix_id, track_indice, inicio_segundos, fim_segundos),
+            )
+            return cur.fetchone()["id"]
+
+    def identify_mix_track(
+        self,
+        mix_track_id: int,
+        titulo_identificado: str,
+        fingerprint_servico: str,
+        fingerprint_confianca: float,
+        source_artist_id: int | None = None,
+        confianca_minima_aceitavel: float = 0.7,
+    ) -> None:
+        """Registra o resultado de uma identificação por fingerprint.
+
+        Se a confiança vier abaixo de `confianca_minima_aceitavel`, marca
+        como 'identificacao_incerta' em vez de 'identificado' — isso evita
+        que uma identificação de baixa confiança entre no cálculo de
+        royalty como se fosse certeza.
+        """
+        if not (0.0 <= fingerprint_confianca <= 1.0):
+            raise ValueError(
+                f"fingerprint_confianca deve estar entre 0 e 1, "
+                f"recebido: {fingerprint_confianca}"
+            )
+        status = (
+            "identificado"
+            if fingerprint_confianca >= confianca_minima_aceitavel
+            else "identificacao_incerta"
+        )
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE mix_tracks SET
+                       status_identificacao = ?,
+                       titulo_identificado = ?,
+                       source_artist_id = ?,
+                       fingerprint_servico = ?,
+                       fingerprint_confianca = ?
+                   WHERE id = ?""",
+                (
+                    status,
+                    titulo_identificado,
+                    source_artist_id,
+                    fingerprint_servico,
+                    fingerprint_confianca,
+                    mix_track_id,
+                ),
+            )
+
+    def list_tracks_for_mix(
+        self, mix_id: int, apenas_identificadas: bool = False
+    ) -> list[MixTrack]:
+        query = "SELECT * FROM mix_tracks WHERE mix_id = ?"
+        params: list = [mix_id]
+        if apenas_identificadas:
+            query += " AND status_identificacao = 'identificado'"
+        query += " ORDER BY track_indice"
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [MixTrack(**dict(r)) for r in rows]
