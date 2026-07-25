@@ -1,0 +1,93 @@
+# SWOT — MELO
+
+| | |
+|---|---|
+| **Versão** | 1.0.0 |
+| **Data** | 2026-07-25 |
+| **Baseado em** | README.md, ROADMAP.md (commit 99cd3ea), estado real de `packages/` |
+| **Próxima revisão sugerida** | ao concluir qualquer item da Fase 1 do ROADMAP, ou a cada 90 dias |
+
+> Este documento é um snapshot. Não é atualizado automaticamente — revisar
+> manualmente e subir a versão (1.1.0, 2.0.0...) a cada revisão relevante,
+> mantendo o histórico via `git log docs/SWOT.md`.
+
+## O que foi prometido
+
+Uma "fábrica de adaptação musical": analisar áudio → adaptar gênero →
+**gerar** áudio/voz adaptado → calcular royalty → **licenciar/distribuir**
+automaticamente.
+
+## Score por módulo
+
+Escala 1–3, onde 1 = vago/mínimo, 2 = parcial, 3 = completo e testado.
+
+| Módulo | Promessa | Entrega | Gap p/ 3/3 |
+|---|---|---|---|
+| `audio` (metadados) | 3 | 3 | 0% |
+| `lyrics` (transcrição) | 3 | 3 | 0% |
+| `adaptation` (BPM+correlação) | 3 | 3 | 0% |
+| `pipeline` (orquestração) | 3 | 3 | 0% |
+| `publisher` (split royalty) | 3 | 2 | 33% |
+| `ai`+`prompts` (adaptação de letra) | 3 | 2 | 33% |
+| `voices` (síntese/clonagem) | 3 | 0 | 100% |
+| `score` (qualidade) | 2 | 0 | 100% |
+| Licenciamento automatizado (Fase 3) | 3 | 0 | 100% |
+| Docs (`ROADMAP`/`BUSINESS_PLAN`) | 3 | 3 | 0% |
+
+**Total: 29 pontos prometidos, 19 entregues → 34% de gap geral para 3/3 em
+tudo.**
+
+Essa média mascara o que importa: os módulos em 3/3 são a parte **fácil**
+(análise). Os três em 0 são o **coração da proposta de valor** (gerar áudio
+de verdade e monetizar automaticamente). Ponderando por importância, a
+completude real do produto está mais perto de **20–25%**, não 66%.
+
+## Forças
+
+- Núcleo de análise 100% testado (41 testes verdes: 32 originais + 9 do
+  adapter de IA).
+- Consciência legal explícita desde o README, evitando risco jurídico
+  grosseiro em geração de voz/regravação.
+- CI real (lint → test → build), rodando em ambiente compatível
+  (`ubuntu-latest`), independente das limitações do ambiente de dev local.
+
+## Fraquezas
+
+- Zero geração de áudio/voz — o diferencial do produto ainda não existe.
+- `BUSINESS_PLAN` era um arquivo vazio até esta revisão; modelo de
+  monetização é hipótese, sem validação com nenhum parceiro real.
+- Ambiente de dev local (Termux/Android) tem atrito real com
+  `torch`/`whisper`/`accelerate` (sem wheel para o triple
+  aarch64-linux-android), o que trava iteração rápida fora do CI.
+
+## Oportunidades
+
+- Correlação panamá ↔ brasil é um nicho pouco explorado — pouca
+  concorrência direta nesse par específico de gêneros.
+- Adapter de letra via LLM (hoje 2/3) é caminho rápido e barato para
+  mostrar valor antes de resolver geração de áudio pesada.
+- Modelo B2B de licenciamento de tecnologia não exige resolver
+  distribuição (Fase 3) primeiro.
+
+## Ameaças
+
+- Ferramentas grandes (Suno, Udio) já resolveram geração de áudio
+  genérica — MELO compete em nicho, não em capacidade bruta.
+- Sem validação de licenciamento com nenhum titular de catálogo, a Fase 3
+  inteira pode ser inviável na prática.
+- Bandwidth aparente de 1 pessoa — Fases 1–3 do ROADMAP (voz, score,
+  licenciamento) são meses de trabalho, não semanas.
+
+## Conclusão / gargalo real
+
+Para chegar a 3/3 em tudo, o gargalo não é código adicional nos módulos
+que já são 3/3 — é decidir se vale a pena perseguir `voices` (alto risco
+técnico e legal) antes de validar a Fase 3 (licenciamento) com pelo menos
+um parceiro real. Sem essa validação, otimizar geração de voz é resolver o
+problema errado primeiro.
+
+## Histórico de revisões
+
+| Versão | Data | Mudança |
+|---|---|---|
+| 1.0.0 | 2026-07-25 | Primeira versão, cobrindo estado do repo até commit 99cd3ea + addon de IA/prompts/CI |
