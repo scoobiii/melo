@@ -47,3 +47,26 @@ def test_extract_features_bpm_still_correct_on_windowed_read(long_audio_file):
     resultado = extract_features(long_audio_file, window_seconds=30.0)
     candidatos = [110.0, 55.0, 220.0]
     assert any(abs(resultado.bpm - c) / c < 0.08 for c in candidatos)
+
+
+def test_extract_features_raises_when_offset_exceeds_duration(long_audio_file):
+    with pytest.raises(ValueError, match="Janela inválida"):
+        extract_features(long_audio_file, window_seconds=10.0, offset_seconds=999.0)
+
+
+def test_extract_features_downmixes_stereo_to_mono(tmp_path):
+    sample_rate = 22050
+    duration = 10.0
+    bpm = 100
+    n_samples = int(sample_rate * duration)
+    y_mono = np.zeros(n_samples)
+    interval = int(sample_rate * 60.0 / bpm)
+    for i in range(0, n_samples, interval):
+        y_mono[i:i + 50] = 0.8
+
+    y_stereo = np.column_stack([y_mono, np.roll(y_mono, 5)])
+    path = tmp_path / "faixa_estereo.wav"
+    sf.write(str(path), y_stereo, sample_rate)
+
+    resultado = extract_features(str(path), window_seconds=8.0, offset_seconds=0.0)
+    assert resultado.bpm > 0

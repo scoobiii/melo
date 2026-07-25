@@ -1,0 +1,1053 @@
+############################################
+# packages/catalog/__init__.py
+############################################
+# Localização no repo: packages/catalog/__init__.py
+from .store import (
+    CatalogStore,
+    DestinationArtist,
+    SegmentMapping,
+    SourceArtist,
+)
+
+__all__ = [
+    "CatalogStore",
+    "DestinationArtist",
+    "SegmentMapping",
+    "SourceArtist",
+]
+
+############################################
+# packages/catalog/store.py
+############################################
+# Localização no repo: packages/catalog/store.py
+"""
+Persistência de artistas de origem/destino e mapeamento de segmentos.
+
+Usa sqlite3 da stdlib de propósito: nenhuma dependência nova, nenhuma
+compilação nativa. Isso importa neste projeto porque já tivemos dor real
+com pacotes que exigem build nativo (torch, anthropic/jiter) no ambiente
+Termux/Android. SQLite roda em qualquer lugar sem esse risco.
+
+Modelo de dados:
+- source_artists: quem fez a faixa original (origem: panamá etc.)
+- destination_artists: candidatos locais por gênero de destino (brasil)
+- segment_mappings: liga um segmento de uma faixa a um artista de destino
+  e registra que tipo de transformação foi aplicada (direta ou criativa)
+
+Este módulo é a peça que faltava para o pipeline deixar de perder estado
+entre execuções — hoje o pipeline só grava JSON solto em output/.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterator, Optional
+
+DEFAULT_DB_PATH = Path("datasets/melo_catalog.sqlite3")
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS source_artists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    genero_origem TEXT NOT NULL,
+    pais TEXT,
+    faixa_original TEXT,
+    status_licenca TEXT NOT NULL DEFAULT 'nao_verificado',
+    UNIQUE(nome, faixa_original)
+);
+
+CREATE TABLE IF NOT EXISTS destination_artists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    genero_destino TEXT NOT NULL,
+    regiao TEXT,
+    perfil_vocal TEXT,
+    disponivel INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(nome, genero_destino)
+);
+
+CREATE TABLE IF NOT EXISTS segment_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    faixa_id TEXT NOT NULL,
+    segmento_indice INTEGER NOT NULL,
+    segmento_tipo TEXT NOT NULL,  -- 'verso', 'refrao', 'ponte', etc.
+    source_artist_id INTEGER REFERENCES source_artists(id),
+    destination_artist_id INTEGER REFERENCES destination_artists(id),
+    tipo_transformacao TEXT NOT NULL DEFAULT 'direta',  -- 'direta' | 'criativa'
+    UNIQUE(faixa_id, segmento_indice)
+);
+"""
+
+
+@dataclass(frozen=True)
+class SourceArtist:
+    id: int
+    nome: str
+    genero_origem: str
+    pais: Optional[str]
+    faixa_original: Optional[str]
+    status_licenca: str
+
+
+@dataclass(frozen=True)
+class DestinationArtist:
+    id: int
+    nome: str
+    genero_destino: str
+    regiao: Optional[str]
+    perfil_vocal: Optional[str]
+    disponivel: bool
+
+
+@dataclass(frozen=True)
+class SegmentMapping:
+    id: int
+    faixa_id: str
+    segmento_indice: int
+    segmento_tipo: str
+    source_artist_id: Optional[int]
+    destination_artist_id: Optional[int]
+    tipo_transformacao: str
+
+
+class CatalogStore:
+    """Acesso ao catálogo de artistas e mapeamentos. Uma instância por
+    conexão de banco; seguro chamar `CatalogStore(path)` várias vezes
+    (schema é criado com IF NOT EXISTS, idempotente).
+    """
+
+    def __init__(self, db_path: Path | str = DEFAULT_DB_PATH):
+        self._db_path = Path(db_path) if str(db_path) != ":memory:" else None
+        self._is_memory = str(db_path) == ":memory:"
+        self._memory_conn: sqlite3.Connection | None = None
+
+        if not self._is_memory:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            # :memory: cria um banco NOVO a cada connect() — precisa manter
+            # uma única conexão viva pela vida do objeto, ou o schema some
+            # entre chamadas.
+            self._memory_conn = sqlite3.connect(":memory:")
+            self._memory_conn.execute("PRAGMA foreign_keys = ON")
+            self._memory_conn.row_factory = sqlite3.Row
+
+        self._init_schema()
+
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        if self._is_memory:
+            # Reusa a mesma conexão; não fecha (fechar destruiria o banco).
+            yield self._memory_conn
+            self._memory_conn.commit()
+            return
+
+        conn = sqlite3.connect(self._db_path)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _init_schema(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(_SCHEMA)
+
+    # ---- source artists ----
+
+    def add_source_artist(
+        self,
+        nome: str,
+        genero_origem: str,
+        pais: str | None = None,
+        faixa_original: str | None = None,
+        status_licenca: str = "nao_verificado",
+    ) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO source_artists
+                   (nome, genero_origem, pais, faixa_original, status_licenca)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(nome, faixa_original) DO UPDATE SET
+                       genero_origem=excluded.genero_origem,
+                       pais=excluded.pais,
+                       status_licenca=excluded.status_licenca
+                   RETURNING id""",
+                (nome, genero_origem, pais, faixa_original, status_licenca),
+            )
+            return cur.fetchone()["id"]
+
+    def list_source_artists(self, genero_origem: str | None = None) -> list[SourceArtist]:
+        query = "SELECT * FROM source_artists"
+        params: tuple = ()
+        if genero_origem:
+            query += " WHERE genero_origem = ?"
+            params = (genero_origem,)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [SourceArtist(**dict(r)) for r in rows]
+
+    # ---- destination artists ----
+
+    def add_destination_artist(
+        self,
+        nome: str,
+        genero_destino: str,
+        regiao: str | None = None,
+        perfil_vocal: str | None = None,
+        disponivel: bool = True,
+    ) -> int:
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO destination_artists
+                   (nome, genero_destino, regiao, perfil_vocal, disponivel)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(nome, genero_destino) DO UPDATE SET
+                       regiao=excluded.regiao,
+                       perfil_vocal=excluded.perfil_vocal,
+                       disponivel=excluded.disponivel
+                   RETURNING id""",
+                (nome, genero_destino, regiao, perfil_vocal, int(disponivel)),
+            )
+            return cur.fetchone()["id"]
+
+    def list_destination_artists(
+        self, genero_destino: str | None = None, apenas_disponiveis: bool = True
+    ) -> list[DestinationArtist]:
+        query = "SELECT * FROM destination_artists WHERE 1=1"
+        params: list = []
+        if genero_destino:
+            query += " AND genero_destino = ?"
+            params.append(genero_destino)
+        if apenas_disponiveis:
+            query += " AND disponivel = 1"
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [
+            DestinationArtist(
+                id=r["id"],
+                nome=r["nome"],
+                genero_destino=r["genero_destino"],
+                regiao=r["regiao"],
+                perfil_vocal=r["perfil_vocal"],
+                disponivel=bool(r["disponivel"]),
+            )
+            for r in rows
+        ]
+
+    # ---- segment mappings ----
+
+    def map_segment(
+        self,
+        faixa_id: str,
+        segmento_indice: int,
+        segmento_tipo: str,
+        destination_artist_id: int | None = None,
+        source_artist_id: int | None = None,
+        tipo_transformacao: str = "direta",
+    ) -> int:
+        if tipo_transformacao not in ("direta", "criativa"):
+            raise ValueError(
+                "tipo_transformacao deve ser 'direta' ou 'criativa', "
+                f"recebido: {tipo_transformacao!r}"
+            )
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO segment_mappings
+                   (faixa_id, segmento_indice, segmento_tipo,
+                    source_artist_id, destination_artist_id, tipo_transformacao)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(faixa_id, segmento_indice) DO UPDATE SET
+                       segmento_tipo=excluded.segmento_tipo,
+                       source_artist_id=excluded.source_artist_id,
+                       destination_artist_id=excluded.destination_artist_id,
+                       tipo_transformacao=excluded.tipo_transformacao
+                   RETURNING id""",
+                (
+                    faixa_id,
+                    segmento_indice,
+                    segmento_tipo,
+                    source_artist_id,
+                    destination_artist_id,
+                    tipo_transformacao,
+                ),
+            )
+            return cur.fetchone()["id"]
+
+    def list_mappings_for_faixa(self, faixa_id: str) -> list[SegmentMapping]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM segment_mappings WHERE faixa_id = ? ORDER BY segmento_indice",
+                (faixa_id,),
+            ).fetchall()
+        return [SegmentMapping(**dict(r)) for r in rows]
+
+############################################
+# packages/adaptation/segmentation.py
+############################################
+# Localização no repo: packages/adaptation/segmentation.py
+"""
+Segmentação determinística de letra transcrita em blocos (verso, refrão,
+ponte). Roda ANTES de qualquer LLM — puramente baseada em estrutura de
+texto (linhas em branco separam blocos; blocos repetidos = refrão).
+
+Este módulo não usa IA e não deveria: segmentação estrutural de texto é
+uma tarefa de regra, não de geração. Mantê-la determinística significa que
+o mesmo texto de entrada sempre produz a mesma segmentação — auditável e
+sem custo de API.
+
+Limitação conhecida: a heurística de "refrão = bloco repetido" falha se a
+transcrição do Whisper tiver pequenas variações entre repetições (erro de
+transcrição, não de segmentação). Isso é aceitável como v1 — normalização
+de texto mais tolerante fica para uma iteração futura, não bloqueia uso.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class LyricSegment:
+    indice: int
+    tipo: str  # "verso" | "refrao" | "ponte"
+    texto: str
+
+
+def _normalizar_bloco(bloco: str) -> str:
+    """Normalização mínima para comparação de repetição: lowercase e
+    espaços colapsados. Não altera o texto original armazenado no segmento.
+    """
+    return " ".join(bloco.lower().split())
+
+
+def segment_lyrics(texto_bruto: str) -> list[LyricSegment]:
+    """Quebra a letra em blocos por linha em branco, e marca blocos que se
+    repetem (normalizados) como 'refrao'. O primeiro bloco nunca-repetido
+    é tratado como 'verso'; blocos entre repetições de refrão viram
+    'ponte' se não forem os mesmos versos.
+
+    Levanta ValueError se o texto for vazio — segmentar nada não é uma
+    operação válida, é um erro de input.
+    """
+    if not texto_bruto.strip():
+        raise ValueError("texto_bruto não pode ser vazio")
+
+    blocos_brutos = [b.strip() for b in texto_bruto.strip().split("\n\n") if b.strip()]
+    if not blocos_brutos:
+        raise ValueError("Nenhum bloco encontrado após normalizar quebras de linha")
+
+    normalizados = [_normalizar_bloco(b) for b in blocos_brutos]
+    contagem = {n: normalizados.count(n) for n in normalizados}
+
+    segmentos: list[LyricSegment] = []
+    vistos_como_refrao: set[str] = set()
+
+    for indice, (bloco, norm) in enumerate(zip(blocos_brutos, normalizados)):
+        if contagem[norm] > 1:
+            tipo = "refrao"
+            vistos_como_refrao.add(norm)
+        elif indice == 0:
+            tipo = "verso"
+        else:
+            tipo = "verso" if norm not in vistos_como_refrao else "refrao"
+
+        segmentos.append(LyricSegment(indice=indice, tipo=tipo, texto=bloco))
+
+    return segmentos
+
+############################################
+# packages/ai/adapter.py
+############################################
+# Localização no repo: packages/ai/adapter.py
+"""
+Cliente de geração de adaptação de letra via Anthropic API.
+
+Implementado com `requests` puro (HTTP direto ao endpoint /v1/messages),
+em vez do SDK oficial `anthropic`. Motivo: o SDK depende de `jiter`, que
+exige compilar uma extensão Rust nativa; o target aarch64-linux-android
+(Termux) não tem toolchain Rust suportada pelo rustup para esse triple,
+então `pip install anthropic` falha nesse ambiente. `requests` já é
+dependência de requirements/base.txt e não tem esse problema.
+
+Padrão seguido (senior devops):
+- configuração via variável de ambiente, nunca hardcoded
+- timeout e retry explícitos, com backoff
+- logging estruturado (não print) - nível INFO para operação normal,
+  WARNING para retry, ERROR para falha definitiva
+- exceções tipadas próprias, para o chamador não precisar tratar
+  exceções genéricas de HTTP
+- parsing de saída XML delimitada, tolerante a variação de whitespace
+  mas explícito sobre o que fazer se o formato vier quebrado (falha, não
+  adivinha)
+
+Dependência: requests (já presente em requirements/base.txt).
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+import time
+from dataclasses import dataclass
+
+import requests
+
+from packages.prompts.templates import (
+    SYSTEM_PROMPT,
+    GenreCorrelation,
+    build_user_prompt,
+)
+
+logger = logging.getLogger("melo.ai.adapter")
+
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_API_VERSION = "2023-06-01"
+DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_TIMEOUT_SECONDS = 30.0
+DEFAULT_MAX_RETRIES = 3
+_RETRY_BACKOFF_BASE_SECONDS = 2.0
+# Códigos HTTP que valem retry (transitórios). 4xx de erro de request
+# (400, 401, 403, 404) não devem ter retry - falhariam de novo do mesmo jeito.
+_RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+
+
+class AdaptationGenerationError(Exception):
+    """Erro definitivo (após esgotar retries) ao gerar adaptação."""
+
+
+class AdaptationParseError(Exception):
+    """A API respondeu, mas fora do formato XML esperado."""
+
+
+@dataclass(frozen=True)
+class LyricAdaptation:
+    theme: str
+    target_meter: str
+    lyrics: str
+    notes: str
+
+
+def _extract_tag(text: str, tag: str) -> str:
+    match = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL)
+    if not match:
+        raise AdaptationParseError(
+            f"Tag <{tag}> não encontrada na resposta do modelo"
+        )
+    return match.group(1).strip()
+
+
+def _parse_response(raw_text: str) -> LyricAdaptation:
+    try:
+        return LyricAdaptation(
+            theme=_extract_tag(raw_text, "theme"),
+            target_meter=_extract_tag(raw_text, "target_meter"),
+            lyrics=_extract_tag(raw_text, "lyrics"),
+            notes=_extract_tag(raw_text, "notes"),
+        )
+    except AdaptationParseError:
+        logger.error(
+            "Falha ao parsear resposta do modelo. Primeiros 200 chars: %r",
+            raw_text[:200],
+        )
+        raise
+
+
+class LyricAdapter:
+    """Cliente de alto nível para gerar adaptação de letra entre gêneros.
+
+    Uso:
+        adapter = LyricAdapter()
+        result = adapter.adapt(letra_original, correlation)
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = DEFAULT_MODEL,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+    ) -> None:
+        # Nunca aceitar API key hardcoded no código chamador - só via env
+        # ou injeção explícita em teste.
+        resolved_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not resolved_key:
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY não definida. Configure a variável de "
+                "ambiente ou passe api_key explicitamente (uso recomendado "
+                "apenas em teste)."
+            )
+        self._api_key = resolved_key
+        self._model = model
+        self._timeout_seconds = timeout_seconds
+        self._max_retries = max_retries
+
+    def adapt(
+        self,
+        original_lyrics: str,
+        correlation: GenreCorrelation,
+    ) -> LyricAdaptation:
+        user_prompt = build_user_prompt(original_lyrics, correlation)
+        headers = {
+            "x-api-key": self._api_key,
+            "anthropic-version": ANTHROPIC_API_VERSION,
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": self._model,
+            "max_tokens": 1024,
+            "system": SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": user_prompt}],
+        }
+
+        last_error: Exception | None = None
+        for attempt in range(1, self._max_retries + 1):
+            try:
+                logger.info(
+                    "Gerando adaptação %s->%s (tentativa %d/%d)",
+                    correlation.source_genre,
+                    correlation.target_genre,
+                    attempt,
+                    self._max_retries,
+                )
+                response = requests.post(
+                    ANTHROPIC_API_URL,
+                    headers=headers,
+                    json=payload,
+                    timeout=self._timeout_seconds,
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    raw_text = "".join(
+                        block.get("text", "")
+                        for block in data.get("content", [])
+                        if block.get("type") == "text"
+                    )
+                    return _parse_response(raw_text)
+
+                if response.status_code in _RETRYABLE_STATUS_CODES:
+                    last_error = RuntimeError(
+                        f"HTTP {response.status_code}: {response.text[:200]}"
+                    )
+                    logger.warning(
+                        "Tentativa %d/%d falhou com HTTP %d",
+                        attempt,
+                        self._max_retries,
+                        response.status_code,
+                    )
+                    if attempt < self._max_retries:
+                        time.sleep(_RETRY_BACKOFF_BASE_SECONDS * attempt)
+                    continue
+
+                # Erro não-retryable (ex: 400, 401, 403) - falha rápido.
+                raise AdaptationGenerationError(
+                    f"HTTP {response.status_code} não recuperável: "
+                    f"{response.text[:200]}"
+                )
+
+            except AdaptationParseError:
+                raise
+
+            except AdaptationGenerationError:
+                raise
+
+            except requests.exceptions.RequestException as exc:
+                last_error = exc
+                logger.warning(
+                    "Tentativa %d/%d falhou: %s", attempt, self._max_retries, exc
+                )
+                if attempt < self._max_retries:
+                    time.sleep(_RETRY_BACKOFF_BASE_SECONDS * attempt)
+
+        logger.error(
+            "Esgotadas %d tentativas de geração de adaptação", self._max_retries
+        )
+        raise AdaptationGenerationError(
+            f"Falha ao gerar adaptação após {self._max_retries} tentativas"
+        ) from last_error
+
+############################################
+# packages/ai/__init__.py
+############################################
+# Localização no repo: packages/ai/__init__.py
+from .adapter import (
+    AdaptationGenerationError,
+    AdaptationParseError,
+    LyricAdaptation,
+    LyricAdapter,
+)
+
+__all__ = [
+    "AdaptationGenerationError",
+    "AdaptationParseError",
+    "LyricAdaptation",
+    "LyricAdapter",
+]
+
+############################################
+# packages/prompts/templates.py
+############################################
+# Localização no repo: packages/prompts/templates.py
+"""
+Prompt engineering para adaptação de letra/estilo entre gêneros
+(panamá -> brasil e vice-versa).
+
+Princípios seguidos (docs.claude.com/prompt-engineering):
+- system prompt separado do conteúdo variável (facilita cache e teste)
+- instruções positivas ("faça X") e negativas ("não faça Y") explícitas
+- pedido de raciocínio em etapas antes da resposta final
+- saída em tags XML nomeadas, para parsing determinístico río abaixo
+- poucos exemplos (few-shot) fixos, não dependentes de dado do usuário
+
+Este módulo NÃO faz chamada de rede. Ele só constrói as strings de prompt.
+A chamada em si fica em packages/ai/adapter.py, para que os prompts sejam
+testáveis sem precisar de API key nem de rede.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class GenreCorrelation:
+    """Espelha o formato de saída de packages.adaptation.correlator.
+
+    Mantido como dataclass local (em vez de importar direto) para não
+    acoplar packages/prompts a packages/adaptation — se o formato de saída
+    do correlator mudar, só este mapeamento precisa ser ajustado.
+    """
+
+    source_genre: str
+    target_genre: str
+    bpm_source: float
+    bpm_target_estimate: float
+    correlation_score: float  # 0.0 a 1.0
+
+
+SYSTEM_PROMPT = """\
+Você é um especialista em música regional brasileira e panamenha, com foco
+em como letra e estrutura rítmica se adaptam entre forró/pisadinha/vanerão/\
+sertanejo e típico/cumbia/tamborito.
+
+Sua tarefa é sugerir uma adaptação de letra e frasing rítmica de uma faixa \
+de um gênero de origem para um gênero de destino, preservando o sentido \
+central da letra original.
+
+Regras obrigatórias:
+- Preserve o tema e a narrativa central da letra original. Não invente uma \
+história nova.
+- Adapte expressões idiomáticas do idioma/região de origem para \
+equivalentes naturais no idioma/região de destino — não traduza \
+literalmente.
+- Ajuste a métrica silábica das linhas para caber no BPM e no fraseado \
+típico do gênero de destino informado.
+- NÃO gere letra completa de artista real nem cite trechos de canção \
+protegida por direito autoral — trabalhe apenas sobre o texto fornecido \
+pelo usuário como entrada.
+- NÃO invente créditos de autoria. Se a autoria original não for \
+informada, deixe o campo correspondente em branco na saída.
+- Pense passo a passo antes de responder: primeiro identifique o tema \
+central, depois a métrica de destino, só então gere a adaptação.
+
+Formato de saída obrigatório (XML), sem texto fora das tags:
+<analysis>
+  <theme>tema central identificado, 1-2 frases</theme>
+  <target_meter>métrica/fraseado do gênero de destino, breve</target_meter>
+</analysis>
+<adaptation>
+  <lyrics>letra adaptada</lyrics>
+  <notes>observações relevantes para o produtor, 1-3 frases</notes>
+</adaptation>
+"""
+
+
+def build_user_prompt(
+    original_lyrics: str,
+    correlation: GenreCorrelation,
+) -> str:
+    """Monta o prompt de usuário a partir da letra original e da correlação
+    de gênero já calculada por packages/adaptation.
+
+    Mantido como função pura (sem I/O) para ser testável sem mocks de rede.
+    """
+    if not original_lyrics.strip():
+        raise ValueError("original_lyrics não pode ser vazio")
+
+    return f"""\
+<input>
+  <source_genre>{correlation.source_genre}</source_genre>
+  <target_genre>{correlation.target_genre}</target_genre>
+  <bpm_source>{correlation.bpm_source:.1f}</bpm_source>
+  <bpm_target_estimate>{correlation.bpm_target_estimate:.1f}</bpm_target_estimate>
+  <correlation_score>{correlation.correlation_score:.2f}</correlation_score>
+  <original_lyrics>
+{original_lyrics.strip()}
+  </original_lyrics>
+</input>
+
+Gere a adaptação seguindo exatamente o formato definido no system prompt.
+"""
+
+
+# Few-shot fixo — usado apenas em avaliação/teste de qualidade do prompt,
+# não enviado em toda chamada (custaria tokens à toa em produção).
+EXAMPLE_CORRELATION = GenreCorrelation(
+    source_genre="tipico_panameno",
+    target_genre="pisadinha",
+    bpm_source=96.0,
+    bpm_target_estimate=130.0,
+    correlation_score=0.72,
+)
+
+############################################
+# packages/prompts/__init__.py
+############################################
+# Localização no repo: packages/prompts/__init__.py
+from .templates import (
+    SYSTEM_PROMPT,
+    GenreCorrelation,
+    build_user_prompt,
+)
+
+__all__ = ["SYSTEM_PROMPT", "GenreCorrelation", "build_user_prompt"]
+
+############################################
+# tests/unit/test_catalog_store.py (teste já existente, pra eu não duplicar)
+############################################
+# Localização no repo: tests/unit/test_catalog_store.py
+"""
+Testes de packages/catalog/store.py. Usa SQLite em memória (':memory:'),
+nenhum arquivo em disco, nenhuma rede.
+"""
+
+import pytest
+
+from packages.catalog.store import CatalogStore
+
+
+@pytest.fixture
+def store():
+    return CatalogStore(db_path=":memory:")
+
+
+def test_add_and_list_source_artist(store):
+    store.add_source_artist(
+        "Dorindo Cárdenas", "tipico_panameno", pais="Panamá",
+        faixa_original="Los Tamboritos",
+    )
+    artistas = store.list_source_artists(genero_origem="tipico_panameno")
+    assert len(artistas) == 1
+    assert artistas[0].nome == "Dorindo Cárdenas"
+    assert artistas[0].status_licenca == "nao_verificado"
+
+
+def test_add_source_artist_is_idempotent_on_conflict(store):
+    id1 = store.add_source_artist("X", "tipico_panameno", faixa_original="Faixa A")
+    id2 = store.add_source_artist(
+        "X", "tipico_panameno", faixa_original="Faixa A", status_licenca="licenciado"
+    )
+    assert id1 == id2
+    artistas = store.list_source_artists()
+    assert len(artistas) == 1
+    assert artistas[0].status_licenca == "licenciado"
+
+
+def test_add_and_list_destination_artist(store):
+    store.add_destination_artist("Cantor BR", "forro_pe_de_serra", regiao="Pernambuco")
+    artistas = store.list_destination_artists(genero_destino="forro_pe_de_serra")
+    assert len(artistas) == 1
+    assert artistas[0].disponivel is True
+
+
+def test_list_destination_artists_filters_unavailable_by_default(store):
+    store.add_destination_artist("A", "vanerao", disponivel=True)
+    store.add_destination_artist("B", "vanerao", disponivel=False)
+    disponiveis = store.list_destination_artists(genero_destino="vanerao")
+    assert len(disponiveis) == 1
+    assert disponiveis[0].nome == "A"
+
+    todos = store.list_destination_artists(
+        genero_destino="vanerao", apenas_disponiveis=False
+    )
+    assert len(todos) == 2
+
+
+def test_map_segment_rejects_invalid_tipo_transformacao(store):
+    with pytest.raises(ValueError):
+        store.map_segment(
+            faixa_id="faixa1",
+            segmento_indice=0,
+            segmento_tipo="verso",
+            tipo_transformacao="magica",
+        )
+
+
+def test_map_segment_and_list_for_faixa(store):
+    dest_id = store.add_destination_artist("Cantor BR", "forro_pe_de_serra")
+    store.map_segment(
+        faixa_id="faixa1",
+        segmento_indice=0,
+        segmento_tipo="verso",
+        destination_artist_id=dest_id,
+        tipo_transformacao="direta",
+    )
+    store.map_segment(
+        faixa_id="faixa1",
+        segmento_indice=1,
+        segmento_tipo="refrao",
+        destination_artist_id=dest_id,
+        tipo_transformacao="criativa",
+    )
+    mapeamentos = store.list_mappings_for_faixa("faixa1")
+    assert len(mapeamentos) == 2
+    assert mapeamentos[0].tipo_transformacao == "direta"
+    assert mapeamentos[1].tipo_transformacao == "criativa"
+
+
+def test_map_segment_upserts_on_conflict(store):
+    dest_id = store.add_destination_artist("Cantor BR", "forro_pe_de_serra")
+    store.map_segment("faixa1", 0, "verso", destination_artist_id=dest_id)
+    store.map_segment("faixa1", 0, "refrao", destination_artist_id=dest_id)
+    mapeamentos = store.list_mappings_for_faixa("faixa1")
+    assert len(mapeamentos) == 1
+    assert mapeamentos[0].segmento_tipo == "refrao"
+
+############################################
+# tests/unit/test_segmentation.py (teste já existente)
+############################################
+# Localização no repo: tests/unit/test_segmentation.py
+"""Testes de packages/adaptation/segmentation.py. Puro, sem I/O nenhum."""
+
+import pytest
+
+from packages.adaptation.segmentation import segment_lyrics
+
+
+def test_segment_lyrics_rejects_empty_text():
+    with pytest.raises(ValueError):
+        segment_lyrics("")
+
+
+def test_segment_lyrics_rejects_whitespace_only():
+    with pytest.raises(ValueError):
+        segment_lyrics("   \n\n   ")
+
+
+def test_segment_lyrics_single_block_is_verso():
+    segmentos = segment_lyrics("uma linha só de letra")
+    assert len(segmentos) == 1
+    assert segmentos[0].tipo == "verso"
+
+
+def test_segment_lyrics_repeated_block_is_refrao():
+    texto = "verso um\n\nrefrão que repete\n\nverso dois\n\nrefrão que repete"
+    segmentos = segment_lyrics(texto)
+    tipos = [s.tipo for s in segmentos]
+    assert tipos == ["verso", "refrao", "verso", "refrao"]
+
+
+def test_segment_lyrics_preserves_original_text_not_normalized():
+    texto = "Refrão Repete\n\nverso\n\nrefrão repete"
+    segmentos = segment_lyrics(texto)
+    # o texto original (com maiúsculas) é preservado, só a comparação é normalizada
+    assert segmentos[0].texto == "Refrão Repete"
+    assert segmentos[2].texto == "refrão repete"
+    assert segmentos[0].tipo == "refrao"
+    assert segmentos[2].tipo == "refrao"
+
+
+def test_segment_lyrics_indices_are_sequential():
+    texto = "a\n\nb\n\nc"
+    segmentos = segment_lyrics(texto)
+    assert [s.indice for s in segmentos] == [0, 1, 2]
+
+############################################
+# tests/unit/test_ai_adapter.py (teste já existente)
+############################################
+# Localização no repo: tests/unit/test_ai_adapter.py
+"""
+Testes do packages/ai/adapter.py. Nenhum teste aqui faz chamada de rede
+real - requests.post é sempre mockado.
+"""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+import requests
+
+from packages.ai.adapter import (
+    AdaptationGenerationError,
+    AdaptationParseError,
+    LyricAdapter,
+    _parse_response,
+)
+from packages.prompts.templates import GenreCorrelation, build_user_prompt
+
+CORRELATION = GenreCorrelation(
+    source_genre="tipico_panameno",
+    target_genre="pisadinha",
+    bpm_source=96.0,
+    bpm_target_estimate=130.0,
+    correlation_score=0.72,
+)
+
+VALID_RESPONSE_XML = """
+<analysis>
+  <theme>saudade de terra natal</theme>
+  <target_meter>fraseado curto, 4 sílabas por linha</target_meter>
+</analysis>
+<adaptation>
+  <lyrics>linha adaptada aqui</lyrics>
+  <notes>ajustar para caber no BPM de destino</notes>
+</adaptation>
+"""
+
+
+def _mock_response(status_code=200, content=None, text=""):
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.text = text
+    if content is not None:
+        resp.json.return_value = {"content": content}
+    return resp
+
+
+def test_build_user_prompt_rejects_empty_lyrics():
+    with pytest.raises(ValueError):
+        build_user_prompt("", CORRELATION)
+
+
+def test_build_user_prompt_includes_correlation_fields():
+    prompt = build_user_prompt("uma letra qualquer", CORRELATION)
+    assert "tipico_panameno" in prompt
+    assert "pisadinha" in prompt
+    assert "0.72" in prompt
+
+
+def test_parse_response_happy_path():
+    result = _parse_response(VALID_RESPONSE_XML)
+    assert result.theme == "saudade de terra natal"
+    assert result.lyrics == "linha adaptada aqui"
+
+
+def test_parse_response_missing_tag_raises():
+    broken = "<analysis><theme>x</theme></analysis>"
+    with pytest.raises(AdaptationParseError):
+        _parse_response(broken)
+
+
+def test_adapter_requires_api_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(RuntimeError):
+        LyricAdapter()
+
+
+@patch("packages.ai.adapter.requests.post")
+def test_adapter_adapt_success(mock_post):
+    mock_post.return_value = _mock_response(
+        status_code=200,
+        content=[{"type": "text", "text": VALID_RESPONSE_XML}],
+    )
+
+    adapter = LyricAdapter(api_key="fake-key-for-test")
+    result = adapter.adapt("letra original", CORRELATION)
+
+    assert result.theme == "saudade de terra natal"
+    mock_post.assert_called_once()
+
+
+@patch("packages.ai.adapter.time.sleep", return_value=None)
+@patch("packages.ai.adapter.requests.post")
+def test_adapter_retries_on_5xx_then_raises(mock_post, _mock_sleep):
+    mock_post.return_value = _mock_response(status_code=503, text="overloaded")
+
+    adapter = LyricAdapter(api_key="fake-key-for-test", max_retries=2)
+    with pytest.raises(AdaptationGenerationError):
+        adapter.adapt("letra original", CORRELATION)
+
+    assert mock_post.call_count == 2
+
+
+@patch("packages.ai.adapter.requests.post")
+def test_adapter_does_not_retry_on_401(mock_post):
+    mock_post.return_value = _mock_response(status_code=401, text="unauthorized")
+
+    adapter = LyricAdapter(api_key="fake-key-for-test", max_retries=3)
+    with pytest.raises(AdaptationGenerationError):
+        adapter.adapt("letra original", CORRELATION)
+
+    # 401 não é retryable: só deve ter tentado uma vez
+    assert mock_post.call_count == 1
+
+
+@patch("packages.ai.adapter.time.sleep", return_value=None)
+@patch("packages.ai.adapter.requests.post")
+def test_adapter_retries_on_network_error(mock_post, _mock_sleep):
+    mock_post.side_effect = requests.exceptions.ConnectionError("no network")
+
+    adapter = LyricAdapter(api_key="fake-key-for-test", max_retries=2)
+    with pytest.raises(AdaptationGenerationError):
+        adapter.adapt("letra original", CORRELATION)
+
+    assert mock_post.call_count == 2
+
+############################################
+# COVERAGE REPORT (--cov-report=term-missing)
+############################################
+....................................................../data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5c9a0>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5cc70>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5cb80>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5ca90>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5c8b0>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5c7c0>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/data/data/com.termux/files/usr/lib/python3.14/collections/__init__.py:455: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x76e3f5c6d0>
+  result = tuple_new(cls, iterable)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+                   [100%]
+================================ tests coverage ================================
+______________ coverage: platform android, python 3.14.6-final-0 _______________
+
+Name                                  Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------
+packages/__init__.py                      0      0   100%
+packages/adaptation/__init__.py           4      0   100%
+packages/adaptation/correlator.py        30      0   100%
+packages/adaptation/features.py          44      4    91%   55, 66, 98, 104
+packages/adaptation/genres.py            18      0   100%
+packages/adaptation/segmentation.py      28      1    96%   51
+packages/ai/__init__.py                   2      0   100%
+packages/ai/adapter.py                   75      1    99%   190
+packages/audio/__init__.py                2      0   100%
+packages/audio/loader.py                 11      0   100%
+packages/catalog/__init__.py              2      0   100%
+packages/catalog/store.py                98      8    92%   107, 126-133
+packages/lyrics/__init__.py               2      0   100%
+packages/lyrics/transcriber.py           18      0   100%
+packages/pipeline/__init__.py             2      0   100%
+packages/pipeline/run.py                 26      0   100%
+packages/prompts/__init__.py              2      0   100%
+packages/prompts/templates.py            15      0   100%
+packages/publisher/__init__.py            2      0   100%
+packages/publisher/royalties.py          25      0   100%
+-------------------------------------------------------------------
+TOTAL                                   406     14    97%
+54 passed in 5.78s

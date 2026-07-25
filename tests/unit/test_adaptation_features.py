@@ -29,3 +29,20 @@ def test_estimate_bpm_raises_on_silence():
     y = np.zeros(22050 * 2)
     with pytest.raises(ValueError):
         estimate_bpm(y, 22050)
+
+
+def test_estimate_bpm_raises_on_very_short_onset_envelope():
+    # y curto o bastante para que o envelope de onset tenha menos de 2
+    # amostras (frame_len=1024, hop=512 -> precisa de poucos frames).
+    y = np.zeros(2000)
+    with pytest.raises(ValueError, match="curto demais"):
+        estimate_bpm(y, sample_rate=22050)
+
+
+def test_estimate_bpm_raises_when_bpm_window_invalid_for_short_audio():
+    # Áudio com energia real (não silêncio), mas curto o suficiente para
+    # que a janela de lags válidos (min_lag..max_lag) colapse.
+    rng = np.random.RandomState(42)
+    y = rng.rand(4200)  # onset resultante tem ~5 amostras -> max_lag <= min_lag
+    with pytest.raises(ValueError, match="Janela de BPM inválida"):
+        estimate_bpm(y, sample_rate=22050)

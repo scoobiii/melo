@@ -47,7 +47,13 @@ def segment_lyrics(texto_bruto: str) -> list[LyricSegment]:
         raise ValueError("texto_bruto não pode ser vazio")
 
     blocos_brutos = [b.strip() for b in texto_bruto.strip().split("\n\n") if b.strip()]
-    if not blocos_brutos:
+    if not blocos_brutos:  # pragma: no cover
+        # Inalcançável dado o código atual: se texto_bruto.strip() (linha
+        # acima) é truthy, ao menos um caractere não-whitespace existe no
+        # texto original, e ele necessariamente sobrevive em algum bloco
+        # após o split + strip individual — logo blocos_brutos nunca fica
+        # vazio aqui. Mantido como rede de segurança caso a lógica de split
+        # mude no futuro (ex.: separador diferente de "\n\n").
         raise ValueError("Nenhum bloco encontrado após normalizar quebras de linha")
 
     normalizados = [_normalizar_bloco(b) for b in blocos_brutos]

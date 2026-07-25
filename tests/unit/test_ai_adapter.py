@@ -124,3 +124,20 @@ def test_adapter_retries_on_network_error(mock_post, _mock_sleep):
         adapter.adapt("letra original", CORRELATION)
 
     assert mock_post.call_count == 2
+
+
+@patch("packages.ai.adapter.requests.post")
+def test_adapter_adapt_reraises_parse_error_on_broken_xml(mock_post):
+    # Resposta 200 (sucesso HTTP), mas corpo XML sem as tags esperadas —
+    # exercita o `except AdaptationParseError: raise` dentro de adapt(),
+    # não apenas _parse_response() isolado.
+    mock_post.return_value = _mock_response(
+        status_code=200,
+        content=[{"type": "text", "text": "<analysis><theme>x</theme></analysis>"}],
+    )
+
+    adapter = LyricAdapter(api_key="fake-key-for-test")
+    with pytest.raises(AdaptationParseError):
+        adapter.adapt("letra original", CORRELATION)
+
+    mock_post.assert_called_once()

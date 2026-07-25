@@ -95,3 +95,23 @@ def test_map_segment_upserts_on_conflict(store):
     mapeamentos = store.list_mappings_for_faixa("faixa1")
     assert len(mapeamentos) == 1
     assert mapeamentos[0].segmento_tipo == "refrao"
+
+
+def test_catalog_store_with_real_file_creates_parent_dir_and_persists(tmp_path):
+    # Exercita o caminho NÃO-memória: cria diretório pai (mkdir), abre/commita/
+    # fecha conexão real de arquivo (_connect não-memory), diferente da
+    # fixture `store` acima, que só usa ':memory:'.
+    db_path = tmp_path / "subdir" / "catalog.sqlite3"
+    assert not db_path.parent.exists()
+
+    store_arquivo = CatalogStore(db_path=db_path)
+    assert db_path.parent.exists()  # mkdir(parents=True) funcionou
+
+    store_arquivo.add_source_artist("Y", "cumbia_panamena", faixa_original="Faixa B")
+
+    # reabre com uma NOVA instância apontando pro mesmo arquivo, confirmando
+    # que os dados persistiram de fato em disco (não só em memória do processo)
+    store_reaberto = CatalogStore(db_path=db_path)
+    artistas = store_reaberto.list_source_artists(genero_origem="cumbia_panamena")
+    assert len(artistas) == 1
+    assert artistas[0].nome == "Y"
