@@ -29,20 +29,21 @@ via `numpy`/`scipy` puro (`packages/adaptation/features.py`) em vez de
 
 ## Estrutura de módulos
 
+<!-- BEGIN:TREE -->
 ```
 packages/
-├── audio/        # I/O e metadados de áudio (soundfile)
-├── lyrics/       # transcrição via Whisper (import lazy, opcional)
-├── adaptation/   # BPM + correlação de gênero panamá↔brasil + segmentação de letra
-├── catalog/      # persistência SQLite: artistas, produtores, faixas, vozes,
-                   # mapeamento de segmentos, wiring de tradução de gênero (translation.py)
-├── pipeline/     # orquestra audio+lyrics+adaptation numa chamada
-├── publisher/    # split/payout de royalty (percentuais não hardcoded)
-├── ai/           # adapter de letra via LLM (prompt building, parsing, retries)
-├── prompts/      # não implementado
-├── score/        # não implementado (arranjo/partitura)
-└── voices/       # não implementado
+├── audio/          # I/O e metadados de áudio (soundfile)
+├── lyrics/         # transcrição via Whisper (import lazy, opcional)
+├── adaptation/     # BPM + correlação de gênero panamá↔brasil + segmentação de letra
+├── catalog/        # persistência SQLite: artistas, produtores, faixas, vozes, wiring de tradução (translation.py)
+├── pipeline/       # orquestra audio+lyrics+adaptation numa chamada
+├── publisher/      # split/payout de royalty (percentuais não hardcoded)
+├── ai/             # client Anthropic API: envia prompt, parsing/retries (packages/ai/adapter.py)
+├── prompts/        # prompt engineering isolado sem I/O: system prompt, few-shot, build_user_prompt (packages/prompts/templates.py)
+├── score/          # métrica de aderência não-binária: correlação de gênero + confiança vocal + cobertura (packages/score/quality.py)
+└── voices/         # não implementado
 ```
+<!-- END:TREE -->
 
 Cada módulo segue o padrão: `__init__.py` reexportando a API pública,
 lógica em arquivo(s) próprio(s), testes espelhados em `tests/unit/`.
@@ -55,7 +56,9 @@ make coverage       # roda com --cov
 pytest -k adaptation  # roda só um módulo
 ```
 
-Estado atual: 68 testes, 100% passando. `tests/integration` e
+<!-- BEGIN:TESTCOUNT -->
+Estado atual: 71 testes, 100% passando.
+<!-- END:TESTCOUNT --> `tests/integration` e
 `tests/regression` existem como diretórios mas ainda não têm testes —
 próximo débito técnico a endereçar (o pipeline foi validado manualmente
 contra 1 arquivo de áudio real, não há teste de integração automatizado
