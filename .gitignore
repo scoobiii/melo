@@ -10,3 +10,8 @@ find_audio_samples.sh
 assets/samples/*.mp3
 assets/samples/*.wav
 output/*.json
+close_*.sh
+collect_*.sh
+fix_*.sh
+show_*.sh
+melo_diagnostico.txt
