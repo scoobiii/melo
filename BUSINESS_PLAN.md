@@ -49,6 +49,35 @@ Três caminhos possíveis, não mutuamente exclusivos:
 Nenhuma dessas hipóteses tem validação de mercado ainda — são direções, não
 compromissos.
 
+## 4.1 Posicionamento frente a Suno/Udio (revisão 2026-07-25)
+
+Suno e Udio competem em **geração de áudio do zero** (texto → música
+completa) e não têm API oficial pública até julho de 2026 — apenas
+wrappers de terceiros não-oficiais, com risco de estabilidade e de termos
+de uso. MELO **não compete nesse espaço** e não deveria tentar: a vantagem
+real é ser o oposto — adaptação de uma faixa **existente e identificada**,
+com split de royalty já resolvido tecnicamente (`packages/publisher`), num
+nicho de gênero (panamá↔brasil) que essas ferramentas não endereçam.
+
+Isso muda a priorização: perseguir geração de voz própria (Fase 1 do
+ROADMAP) só faz sentido se a alternativa de reaproveitar Suno/Udio via API
+não for viável — e hoje não é, porque a API deles não é pública. Ou seja,
+não há atalho: se quisermos gerar áudio, é preciso construir isso
+internamente, o que reforça o tamanho real do investimento da Fase 1.
+
+## 4.2 Oportunidades identificadas (gaps que também são espaço de produto)
+
+- **Tradução simultânea à adaptação de gênero**: extensão barata do
+  `packages/ai/adapter.py` já existente — não exige infraestrutura nova,
+  só expandir o prompt.
+- **Casting de voz por gênero** (escolher cantor local — forró raiz,
+  universitário, sofrência, sertanejo, vanerão — um ou vários
+  simultaneamente): produto novo, mas de menor risco técnico que geração
+  de voz do zero. Depende de resolver persistência primeiro (ver 5.1).
+- **Nicho defensável**: por Suno/Udio não terem API pública nem foco em
+  adaptação regional, MELO tem uma janela de tempo para se estabelecer
+  nesse nicho específico antes que players maiores decidam entrar nele.
+
 ## 5. Riscos principais
 
 - **Legal**: qualquer geração de voz que imite artista real sem
@@ -59,6 +88,14 @@ compromissos.
 - **Dependência de dados**: correlação de gênero panamá↔brasil precisa de
   dataset representativo; `datasets/` está presente na estrutura mas o
   conteúdo não foi auditado aqui.
+- **Ausência de persistência**: não há camada de banco (relacional ou
+  vetorial) no projeto hoje — `output/` é só JSON em arquivo. Qualquer
+  feature que dependa de "lembrar" dados entre execuções (base de
+  cantores, score histórico, catálogo de faixas) precisa dessa camada
+  antes de existir.
+- **Nenhuma interface de usuário existe ainda**: `apps/web`, `apps/mobile`,
+  `apps/cli` são pastas vazias. Não há player nem gerenciador de arquivo —
+  qualquer demonstração hoje é via linha de comando.
 
 ## 6. Próximos passos concretos
 
