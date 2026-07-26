@@ -45,8 +45,13 @@ autocorrelação sem significado musical real — na prática, isso foi
 observado diretamente: um mix de 62 minutos analisado por inteiro deu um
 BPM ~198 (implausível para o gênero); a mesma faixa, analisada numa janela
 de 40s do centro, deu ~96 (dentro do esperado). Para arquivos com uma única
-música, a janela central costuma ser representativa. Para mixes/playlists,
-o ideal é segmentar por faixa antes (não implementado ainda).
+música, a janela central costuma ser representativa.
+
+Para mixes/playlists de DJ (várias faixas), use a análise por segmentos:
+ver [docs/MIX_ANALYSIS.md](./MIX_ANALYSIS.md) e
+`python scripts/full_mix_analysis.py mix.wav --out output/mix_analise.json`.
+O pipeline de faixa única (`run_pipeline.py`) continua usando janela de \~40s
+no centro — adequado só para um fonograma, não para mix.
 
 ## Fontes de áudio legítimas
 

@@ -34,3 +34,6 @@ clean:
 
 analyze-mix:
 	PYTHONPATH=. python3 scripts/full_mix_analysis.py $(WAV) --out output/mix_analise.json --modelo tiny --idioma es
+
+docs:
+	PYTHONPATH=. python3 scripts/generate_docs.py

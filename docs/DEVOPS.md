@@ -34,7 +34,7 @@ via `numpy`/`scipy` puro (`packages/adaptation/features.py`) em vez de
 packages/
 ├── audio/          # I/O e metadados de áudio (soundfile)
 ├── lyrics/         # transcrição via Whisper (import lazy, opcional)
-├── adaptation/     # BPM + correlação de gênero panamá↔brasil + segmentação de letra
+├── adaptation/     # BPM + correlação + segmentação de letra/mix (mix_segmentation.py)
 ├── catalog/        # persistência SQLite: artistas, produtores, faixas, vozes, wiring de tradução (translation.py)
 ├── pipeline/       # orquestra audio+lyrics+adaptation numa chamada
 ├── publisher/      # split/payout de royalty (percentuais não hardcoded)
