@@ -20,11 +20,11 @@ automatizado). Ver [ROADMAP.md](./ROADMAP.md).
 | `packages/catalog` | Persistência (SQLite) de artistas/produtores/faixas/vozes + wiring de tradução de gênero | 27 |
 | `packages/pipeline` | Orquestra audio → adaptation → lyrics numa chamada só | 4 |
 | `packages/publisher` | Motor de split/payout de royalty (percentuais negociados fora do código) | 8 |
-| `packages/ai`, `packages/prompts` | Adaptação de letra via LLM: prompt engineering isolado sem I/O (system prompt, few-shot) + client Anthropic API (retries, parsing XML) | 10 |
+| `packages/ai`, `packages/prompts` | Adaptação de letra via LLM: prompt engineering isolado sem I/O (system prompt, few-shot) + client Anthropic API (retries, parsing XML) | 19 |
 | `packages/score` | Métrica de aderência não-binária (correlação de gênero + confiança vocal + cobertura de dados) | 9 |
 | `packages/voices` | InstrumentalAdapter funcional e testado (time-stretch + EQ de textura, não-generativo); VoiceGenerator é skeleton — exige backend externo (RVC/Coqui/Bark), não sintetiza voz sozinho | 11 |
 
-**Total: 113 testes, suíte 100% verde.**
+**Total: 122 testes, suíte 100% verde.**
 <!-- END:MODULES -->
 
 ## Quickstart
