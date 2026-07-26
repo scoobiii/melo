@@ -95,6 +95,8 @@ def transcribe_audio(
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
     if resultado.returncode != 0:
