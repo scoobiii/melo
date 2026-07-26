@@ -95,3 +95,29 @@ problema errado primeiro.
 |---|---|---|
 | 1.0.0 | 2026-07-25 | Primeira versão, cobrindo estado do repo até commit 99cd3ea + addon de IA/prompts/CI |
 | 1.1.0 | 2026-07-25 | Atualiza contagem de testes (68), adiciona `packages/catalog` (persistência real + wiring de tradução de gênero) ao score, corrige README/DEVOPS/BUSINESS_PLAN que descreviam persistência como inexistente |
+
+## MELO vs. bases de indústria (ECAD / Discogs / ACRCloud / gravadoras)
+
+Comparação de identificadores — não é sobre volume de dados, é sobre
+**vocabulário compartilhado**: sem esses códigos, o MELO nunca casa
+automaticamente com um registro real de ECAD/Discogs, mesmo que os dados
+estejam corretos, porque cada sistema usa uma chave diferente pra "a
+mesma coisa".
+
+| Identificador | O que é | Quem usa | Status no MELO |
+|---|---|---|---|
+| ISRC | Gravação específica (fonograma) | ECAD, Discogs, ACRCloud, todo DSP | Campo adicionado (`faixas.isrc`), **não preenchido automaticamente** — precisa de fonte externa ou input manual |
+| ISWC | Composição/obra (letra+melodia) | ECAD, CISAC | Campo adicionado (`faixas.iswc`), mesma limitação |
+| ISNI | Pessoa física (artista/autor) | Discogs, bibliotecas, ECAD | Campo adicionado (`source_artists.isni`, `destination_artists.isni`) |
+| IPI | Parte interessada pra royalty (CISAC) | ECAD diretamente | Campo adicionado (`source_artists.ipi_number`, `produtores.ipi_number`) |
+| UPC/EAN | Release/álbum | Discogs, distribuidoras | Campo adicionado (`faixas.upc`) |
+| DDEX Party ID | Empresa na cadeia B2B de distribuição | Distribuição digital moderna | Campo adicionado (`produtores.ddex_party_id`) |
+| Fingerprint acústico (tipo ACRCloud `acrid`) | Match de áudio por conteúdo, não metadado | ACRCloud, Shazam-like | **Não existe.** `packages/catalog` casa por nome/path, não por conteúdo do áudio. Gap real, não é só campo faltando — exigiria motor de fingerprinting (fora de escopo atual). |
+
+**Conclusão**: os campos foram adicionados (schema pronto pra receber os
+códigos), mas **preenchê-los automaticamente é outro projeto** — exige
+integração com uma base externa (Discogs API, ACRCloud, ou cadastro
+manual/CRM via `packages/catalog/partners.py`, se for essa a peça que
+resolve isso — não verificado nesta sessão). Sem essa integração, os
+campos ficam `NULL` e o "formato de indústria" é só estrutural, não
+funcional ainda.
