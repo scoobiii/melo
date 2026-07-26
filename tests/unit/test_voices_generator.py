@@ -86,15 +86,26 @@ class TestInstrumentalAdapter:
 
         assert resultado.duration_seconds > duration_original
 
-    def test_adapt_known_bug_genre_fields_always_empty(self, synthetic_wav, tmp_path):
-        """DOCUMENTA UM BUG CONHECIDO, não um comportamento desejado.
+    def test_adapt_propagates_genre_fields_when_provided(self, synthetic_wav, tmp_path):
+        """Fix aplicado: adapt() aceita e propaga source_genre/target_genre."""
+        path, _sr, _duration = synthetic_wav
+        saida = tmp_path / "saida.wav"
+        adapter = InstrumentalAdapter()
 
-        adapt() não recebe source_genre/target_genre como parâmetro e sempre
-        retorna string vazia nesses dois campos do GeneratedTrack. Este teste
-        deve PASSAR hoje (confirmando o bug) e FALHAR assim que o fix for
-        aplicado — nesse momento, troque as duas asserções por checagem dos
-        valores reais passados.
-        """
+        resultado = adapter.adapt(
+            audio_path=path,
+            target_bpm=120.0,
+            source_bpm=100.0,
+            output_path=str(saida),
+            source_genre="tipico_panameno",
+            target_genre="forro_pe_de_serra",
+        )
+
+        assert resultado.source_genre == "tipico_panameno"
+        assert resultado.target_genre == "forro_pe_de_serra"
+
+    def test_adapt_defaults_genre_fields_to_empty_when_not_provided(self, synthetic_wav, tmp_path):
+        """Retrocompatibilidade: chamar sem gênero continua funcionando."""
         path, _sr, _duration = synthetic_wav
         saida = tmp_path / "saida.wav"
         adapter = InstrumentalAdapter()
