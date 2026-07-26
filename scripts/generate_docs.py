@@ -34,8 +34,8 @@ MODULE_INFO = [
                    "prompt engineering isolado sem I/O: system prompt, few-shot, build_user_prompt (packages/prompts/templates.py)"),
     ("score",      "Métrica de aderência não-binária (correlação de gênero + confiança vocal + cobertura de dados)",
                    "métrica de aderência não-binária: correlação de gênero + confiança vocal + cobertura (packages/score/quality.py)"),
-    ("voices",     "Ainda não implementado",
-                   "não implementado"),
+    ("voices",     "InstrumentalAdapter funcional e testado (time-stretch + EQ de textura, não-generativo); VoiceGenerator é skeleton — exige backend externo (RVC/Coqui/Bark), não sintetiza voz sozinho",
+                   "instrumental funcional (time-stretch/EQ via scipy); voz é contrato p/ backend externo, sem geração própria (generator.py)"),
 ]
 
 # módulos que aparecem juntos numa única linha da tabela (mesma descrição/testes somados)
