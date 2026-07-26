@@ -1,3 +1,58 @@
+# HANDOFF — MELO
+
+> Convenção: UM arquivo só. Cada sessão/sprint acrescenta uma seção
+> nova NO TOPO (mais recente primeiro), nunca cria handoff_2.md,
+> handoff_addendum.md, etc. Se o arquivo ficar longo demais,
+> arquivar seções antigas em docs/handoff-archive/AAAA-MM.md,
+> mas o arquivo ativo continua sendo só HANDOFF.md.
+
+---
+
+# HANDOFF — fechamento sessão de chat [chat-session], 26/07 (continuação)
+
+## Dúvidas que esta sessão levantou e já resolveu (não deixar reabrir)
+
+| Dúvida | Resposta confirmada | Como foi confirmado |
+|---|---|---|
+| `faster-whisper` funciona no Termux? | **Não.** Dependência `av` falha ao compilar — erro de incompatibilidade Cython `noexcept` contra Python 3.14, não relacionado a ARM/Rust. | `pip install faster-whisper` até o fim, traceback completo colado na conversa |
+| `whisper.cpp` funciona no Termux? | **Sim.** Compila com `clang`/`cmake` já presentes, sem tocar torch. | Build completo até `whisper-cli`, rodado contra áudio real, texto coerente com modelo `small` |
+| `small` vs `base` vs `large-v3`, qual usar? | **`small` local.** `base` alucina demais; `large-v3` exige GPU (Colab) que contradiz a meta de 350MB de RAM já declarada em `packages/audio/validate.py`. | Comparação lado a lado no mesmo trecho de 15s; teste de `large-v3` no Colab deu `OutOfMemoryError` numa GPU de 14GB |
+| Colab vale o esforço pra este projeto? | **Não, veredito fechado nesta sessão ("colab lixo").** OOM, kernel restart, rate limit de HF, resultado nunca confirmado até o fim — tudo pra um ganho de qualidade que a arquitetura do projeto não pede (meta é rodar local, 350MB). | Sequência completa de erros na conversa; nenhuma transcrição via Colab foi confirmada de ponta a ponta |
+| Bug do `test_file_too_large` era o que o handoff anterior descrevia? | Parcialmente — o teste passou 13/13 sem precisar de correção adicional. A hipótese de `follow_symlinks` levantada nesta sessão **era especulação errada**, corrigida ao rodar o teste real. | `pytest tests/test_audio_validate.py -v` → 13 passed |
+| Custo de fingerprinting (ACRCloud/AudD) inviabiliza o produto? | **Não** — ~R$0,03–0,04 por faixa identificada. Mas **qualidade em repertório de nicho (típico panamenho) é inconclusiva** — 1 teste real, não reconheceu. | Pesquisa de preço + 1 chamada real à API AudD |
+| `packages/voices` está mesmo 0% implementado? | **Refinado, não invalidado.** `InstrumentalAdapter` é funcional (time-stretch real via scipy). `VoiceGenerator` levanta erro sem backend — geração de voz de fato segue não implementada. | Leitura do `generator.py` real, colado na conversa |
+| Existe trabalho paralelo de outra sessão/agente no mesmo repo? | **Sim, confirmado repetidas vezes** — CRM (`catalog/partners.py`), `catalog/translation.py`, `score/quality.py`, `integrations/{crm,erp,legal_signing}`, `prompts/hybrid_artist.py`, `generate_docs.py`, e o próprio `HANDOFF.md` com múltiplas sessões anteriores documentadas. | `tree packages/`, `cat HANDOFF.md` |
+
+## Lições de casa pra quem assumir o próximo sprint
+
+1. **Nunca editar ou substituir um arquivo sem `cat` real dele primeiro**, mesmo que pareça óbvio pelo nome dos testes. Aconteceu 2x nesta linha de sessões (uma vez comigo, sobrescrevendo `catalog/store.py`; uma vez em sessão anterior, sobrescrevendo `voices/generator.py` via heredoc com placeholder literal). As duas foram recuperadas porque o conteúdo real tinha sido colado em algum ponto da conversa — **isso é sorte, não processo**. Trate qualquer arquivo não commitado como sem rede de segurança.
+
+2. **Rode antes de afirmar.** Nesta sessão, uma hipótese de bug (`follow_symlinks` em `Path.stat`) foi levantada por especulação e estava errada — só descobrimos porque rodamos o teste real em vez de confiar no raciocínio. Regra: qualquer afirmação sobre comportamento de código deve vir acompanhada do comando que a comprova, ou marcada explicitamente como hipótese não testada.
+
+3. **A meta de 350MB de RAM já existe e não foi respeitada por boa parte desta sessão.** `packages/audio/validate.py` declara essa restrição desde antes desta sessão. Qualquer decisão futura de modelo (Whisper, voz, fingerprinting) precisa checar esse teto primeiro — Colab/GPU remota é desalinhado com a arquitetura pretendida do projeto (rodar local, no dispositivo do usuário), não é só "mais lento".
+
+4. **`generate_docs.py` conta testes por glob de nome de arquivo, não por import/AST.** Um arquivo de teste que não segue a convenção `test_<pacote>_*.py` fica invisível na contagem, mesmo passando na suíte real. Já causou divergência de 76 vs 89 testes documentados uma vez nesta linha de sessões. Sempre rodar `pytest tests/ -v | tail` e comparar com o total que `generate_docs.py` reporta antes de confiar no README.
+
+5. **Sessões em paralelo (chat vs. Claude Code vs. outro agente) divergem sem visibilidade mútua.** Confirmado múltiplas vezes nesta linha de handoffs. Antes de confiar em qualquer HANDOFF.md — inclusive este — rodar `git log --oneline -20`, `git status`, e comparar com o que o handoff afirma.
+
+6. **Scripts que fazem `git commit && git push` sozinhos no final merecem uma pausa manual antes do push**, mesmo quando tecnicamente bem escritos (com verificação de âncora, teste embutido, etc. — caso de `add_industry_ids.sh`, ainda não executado nesta sessão). Automação de commit é aceitável; automação de push sem revisão humana do diff não.
+
+7. **Nunca colar API key real em texto puro no chat.** Aconteceu 2x nesta sessão com a key do AudD (trial, risco baixo por não ter billing, mas o hábito é o problema, não o caso específico).
+
+8. **`/tmp` não é diretório temporário confiável no Termux/Android** (sandboxing). Usar `$HOME/algum_dir` ou `mktemp` com `TMPDIR` explícito.
+
+## Itens em aberto, não resolvidos por esta sessão
+
+- `add_industry_ids.sh`: revisado, não executado. Recomendação registrada: remover o `git push` automático do final antes de rodar.
+- `cleanup_dev_scripts.sh` / `reorganize_scripts.sh`: seguem sem leitura por nenhuma sessão até agora.
+- `send_to_colab.sh` / `fetch_from_colab.sh`: tecnicamente seguros (só `rclone copy` de/para pastas fixas), mas o caminho Colab como um todo foi descartado nesta sessão — ficam como código morto documentado, não como fluxo recomendado.
+- Fingerprinting de faixa em repertório de nicho: inconclusivo, só 1 teste real rodado.
+- Identificação automática de ISRC/ISWC/ISNI/etc. (schema pronto via `add_industry_ids.sh`, quando/se rodado): preenchimento automático continua sendo outro projeto, não resolvido por adicionar a coluna.
+- `voices/generator.py`: interface pronta, zero backend de voz real plugado. Continua sendo o gargalo central do produto.
+- Validação com 1 titular de catálogo real: segue não feita, é bloqueador citado em múltiplas sessões anteriores a esta.
+
+---
+
 # HANDOFF — sessão de 25-26/07, nick `tamborito`
 
 Documento de passagem de bastão. Se você é o próximo dev (humano ou outra

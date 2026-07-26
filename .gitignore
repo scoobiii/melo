@@ -17,3 +17,5 @@ show_*.sh
 melo_diagnostico.txt
 whisper.cpp/
 archive/
+*.db
+*.sqlite3
