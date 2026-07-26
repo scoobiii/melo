@@ -1,9 +1,3 @@
 -r base.txt
-torch
-torchaudio
-transformers
-accelerate
-sentencepiece
-openai-whisper
 faster-whisper
 anthropic>=0.40.0

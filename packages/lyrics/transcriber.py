@@ -1,8 +1,16 @@
-"""Audio-to-text transcription via Whisper (local, no API calls)."""
+"""Audio-to-text transcription via faster-whisper (local, no API calls).
+
+Usa faster-whisper (CTranslate2) em vez de openai-whisper por decisão
+deliberada: openai-whisper traz torch + numba/llvmlite como dependências,
+que exigem compilação nativa e são historicamente instáveis em
+Termux/Android ARM64 (mesmo motivo pelo qual packages/adaptation evita
+librosa/numba - ver docs/DEVOPS.md). faster-whisper usa o mesmo modelo
+Whisper, mas via CTranslate2, sem numba/llvmlite.
+"""
 from pathlib import Path
 from typing import Optional
 
-MODELOS_VALIDOS = ("tiny", "base", "small", "medium", "large")
+MODELOS_VALIDOS = ("tiny", "base", "small", "medium", "large-v3")
 
 
 def transcribe_audio(
@@ -10,7 +18,7 @@ def transcribe_audio(
     modelo: str = "small",
     idioma: str = "pt",
 ) -> str:
-    """Transcribe an audio file to text using a local Whisper model.
+    """Transcribe an audio file to text using a local faster-whisper model.
 
     Raises:
         FileNotFoundError: if `arquivo` does not exist.
@@ -23,11 +31,12 @@ def transcribe_audio(
     if not caminho.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
 
-    import whisper  # pip install openai-whisper (lazy: só carrega se realmente for transcrever)
+    from faster_whisper import WhisperModel  # lazy: só carrega se for transcrever
 
-    model = whisper.load_model(modelo)
-    resultado = model.transcribe(str(caminho), language=idioma, verbose=False)
-    return resultado["text"].strip()
+    model = WhisperModel(modelo, device="cpu", compute_type="int8")
+    segments, _info = model.transcribe(str(caminho), language=idioma)
+    texto = " ".join(segment.text.strip() for segment in segments)
+    return texto.strip()
 
 
 def transcribe_and_save(
