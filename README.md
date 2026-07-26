@@ -14,17 +14,18 @@ automatizado). Ver [ROADMAP.md](./ROADMAP.md).
 <!-- BEGIN:MODULES -->
 | Módulo | O que faz | Testes |
 |---|---|---|
-| `packages/audio` | Metadados de áudio (duração, sample rate, canais) | 2 |
+| `packages/audio` | Metadados de áudio (duração, sample rate, canais) + validação (formato, tamanho, cache, lote) | 14 (2 falhando — ver issues) |
 | `packages/lyrics` | Transcrição de letra via Whisper (local) | 5 |
 | `packages/adaptation` | Estimativa de BPM, correlação de gênero panamá↔brasil e segmentação de letra | 24 |
 | `packages/catalog` | Persistência (SQLite) de artistas/produtores/faixas/vozes + wiring de tradução de gênero | 27 |
 | `packages/pipeline` | Orquestra audio → adaptation → lyrics numa chamada só | 4 |
 | `packages/publisher` | Motor de split/payout de royalty (percentuais negociados fora do código) | 8 |
-| `packages/ai`, `packages/prompts` | Adaptação de letra via LLM: prompt engineering isolado sem I/O (system prompt, few-shot) + client Anthropic API (retries, parsing XML) | 10 |
+| `packages/ai` | Client Anthropic API (retries, parsing XML) | 9 |
+| `packages/prompts` | Prompt engineering isolado sem I/O: adaptação de letra + geração de conceito de artista híbrido | 9 |
 | `packages/score` | Métrica de aderência não-binária (correlação de gênero + confiança vocal + cobertura de dados) | 9 |
 | `packages/voices` | Ainda não implementado | 0 |
 
-**Total: 89 testes, suíte 100% verde.**
+**Total: 110 testes, 108 verdes / 2 falhando (`packages/audio` — ver issues).**
 <!-- END:MODULES -->
 
 ## Quickstart
