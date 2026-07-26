@@ -114,3 +114,58 @@ mensagem anterior da conversa. **Regra daqui pra frente: nunca editar via
 heredoc um arquivo ainda não commitado sem antes rodar `git add` +
 `git commit` de um checkpoint, mesmo que "provisório".** Preferir `nano`
 pra edições grandes coladas manualmente.
+
+---
+
+# HANDOFF — sessão adicional (agente: Claude via chat, sem Claude Code)
+
+## Contexto importante pro próximo agente
+
+Esta sessão rodou em paralelo/depois de outra sessão (provavelmente Claude
+Code direto no terminal) que avançou bastante sem visibilidade mútua:
+implementou `packages/voices`, CRM (`catalog/partners.py`), mixes,
+migrou lyrics pra whisper.cpp, e criou `generate_docs.py` pra gerar
+README/DEVOPS automaticamente. Esta sessão (chat) tinha feito
+`packages/catalog` (produtores/faixas/vozes/translation) e
+`packages/score` antes da divergência — commit `bd98ded` é o ponto onde
+as duas linhas do trabalho se encontram no histórico.
+
+**Lição confirmada de novo nesta sessão**: um `HANDOFF.md` anterior citava
+"o patch está numa mensagem anterior desta conversa" — mas essa "conversa"
+era de uma sessão diferente (Claude Code), não a que estava lendo o
+handoff. Esta sessão não reescreveu esse patch de memória.
+
+**Segunda lição desta sessão**: script assumiu `/tmp` como diretório
+temporário válido — Termux/Android não garante isso (sandboxing). Usar
+`$HOME/algum_dir` ou `mktemp` com `TMPDIR` explícito, nunca `/tmp`
+hardcoded, em qualquer script futuro pra este ambiente.
+
+## O que esta sessão fez, confirmado
+
+- Commitou `tests/unit/test_catalog_mixes.py`.
+- Removeu scripts órfãos que já tinham cumprido o papel:
+  `extend_catalog_translation.sh`, `implement_score.sh`,
+  `sync_docs_with_catalog.sh`, `sync_prompts_score_docs.sh`,
+  `migrate_to_whisper_cpp.sh`, `update_readme_decision.sh`.
+- **Não tocou** em `packages/audio/validate.py` nem
+  `tests/test_audio_validate.py` — ver resultado real do pytest abaixo.
+- **Não escreveu** o resumo "SWOT 3/3 por perfil" pedido — ficaria baseado
+  em números desatualizados. Fica pro próximo agente, com
+  `generate_docs.py` e `packages/voices/` lidos primeiro.
+
+## Estado real da suíte nesta sessão (não estimado)
+
+```
+2 failed, 119 passed in 5.36s
+```
+Detalhe completo ficou em `$HOME/melo_tmp/full_suite_result.txt` nesta
+sessão (não persiste entre sessões — rode a suíte de novo se precisar).
+
+## Próximo passo recomendado (ordem)
+
+1. Ler `generate_docs.py` — se já gera README/DEVOPS automaticamente,
+   qualquer edição manual futura deve checar se não será sobrescrita.
+2. Resolver Pendência #1 do handoff anterior (`audio/validate.py`) — com
+   diagnóstico a confirmar rodando o teste, não a copiar de memória.
+3. SÓ DEPOIS, recalcular o SWOT 3/3 por perfil que Zika pediu — com
+   `voices` já existindo, o gap muda bastante e merece dado real.
