@@ -17,6 +17,24 @@ aberto - ver `docs/GAPS_NEGOCIO.md`. As pistas (`transcricao`, nomes
 proprios cantados) servem para busca manual (Shazam, busca de letra) ou
 integracao futura de fingerprinting (AudD/ACRCloud), nao implementada.
 
+## Licenciamento de mixes de DJ (importante)
+
+Um mix de DJ (ex: "Típico Mix Vol.2 - DJ Phantom Panamá") costuma ser
+distribuido gratuitamente para divulgacao, frequentemente com aviso
+explicito tipo "ONLY PROMOTION NOT FOR SALE" na propria capa/descricao.
+Isso autoriza processamento tecnico (segmentacao, analise de BPM,
+transcricao para catalogacao/prototipo) mas **nao** transfere direito
+sobre as faixas individuais dentro do mix - cada musica pertence ao
+artista/gravadora original, nao ao DJ que compilou o mix.
+
+Consequencia pratica: campos de identificacao (`artist`, `work`, `label`)
+podem ser preenchidos para fins de catalogacao/rastreabilidade, mas
+`beneficiary`/`royalty_pct` **nao devem virar split real** em
+`packages/publisher` sem licenca obtida diretamente com o titular da
+faixa original - o DJ que distribuiu o mix nao tem esse direito para
+sublicenciar. Uso de demonstracao/prototipo interno (sem cobranca real,
+sem distribuicao da adaptacao) e o caso de uso seguro por padrao.
+
 ## Uso
 
 ```bash
