@@ -134,6 +134,8 @@ class SourceArtist:
     pais: Optional[str]
     faixa_original: Optional[str]
     status_licenca: str
+    isni: Optional[str] = None
+    ipi_number: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -164,6 +166,8 @@ class Produtor:
     genero_atuacao: Optional[str]
     regiao: Optional[str]
     contato: Optional[str]
+    ipi_number: Optional[str] = None
+    ddex_party_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -178,6 +182,9 @@ class Faixa:
     source_artist_id: Optional[int]
     produtor_id: Optional[int]
     criado_em: str
+    isrc: Optional[str] = None
+    iswc: Optional[str] = None
+    upc: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -256,6 +263,39 @@ class CatalogStore:
     def _init_schema(self) -> None:
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+        self._apply_industry_id_migrations()
+
+    def _apply_industry_id_migrations(self) -> None:
+        """Adiciona colunas de identificadores padrão de indústria
+        (ISRC/ISWC/ISNI/IPI/UPC/DDEX) via ALTER TABLE ADD COLUMN.
+
+        Idempotente: cada ALTER roda dentro de try/except OperationalError
+        (SQLite não tem 'ADD COLUMN IF NOT EXISTS'). Se a coluna já existe
+        de uma migração anterior, ignora silenciosamente.
+
+        Por que isso importa: sem ISRC/ISWC não há como casar
+        automaticamente uma faixa do catálogo com um registro real do
+        ECAD — o schema atual dedup por (nome, faixa_original), que é
+        string livre, não código padronizado. Ver docs/SWOT.md, seção
+        'MELO vs. bases de indústria'.
+        """
+        migrations = [
+            ("source_artists", "isni", "TEXT"),
+            ("source_artists", "ipi_number", "TEXT"),
+            ("destination_artists", "isni", "TEXT"),
+            ("faixas", "isrc", "TEXT"),
+            ("faixas", "iswc", "TEXT"),
+            ("faixas", "upc", "TEXT"),
+            ("produtores", "ipi_number", "TEXT"),
+            ("produtores", "ddex_party_id", "TEXT"),
+        ]
+        with self._connect() as conn:
+            for table, column, coltype in migrations:
+                try:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                except sqlite3.OperationalError as exc:
+                    if "duplicate column name" not in str(exc):
+                        raise
 
     # ---- source artists ----
 
