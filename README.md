@@ -55,5 +55,6 @@ comercial. Ver [docs/USER_GUIDE.md](./docs/USER_GUIDE.md#fontes-de-áudio-legít
 ## Documentação
 
 - [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) — como rodar o pipeline, formatos suportados, interpretação do output
+- [docs/MIX_ANALYSIS.md](./docs/MIX_ANALYSIS.md) — analisar mix longo com múltiplos artistas (segmentação + transcrição local)
 - [docs/DEVOPS.md](./docs/DEVOPS.md) — ambiente, dependências, testes, estrutura dos módulos
 - [BUSINESS_PLAN.md](./BUSINESS_PLAN.md), [ROADMAP.md](./ROADMAP.md)

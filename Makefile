@@ -30,3 +30,7 @@ clean:
 	rm -f .coverage
 	find . -name "__pycache__" -type d -exec rm -rf {} +
 	find . -name "*.pyc" -delete
+
+
+analyze-mix:
+	PYTHONPATH=. python3 scripts/full_mix_analysis.py $(WAV) --out output/mix_analise.json --modelo tiny --idioma es
