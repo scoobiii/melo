@@ -169,3 +169,57 @@ sessão (não persiste entre sessões — rode a suíte de novo se precisar).
    diagnóstico a confirmar rodando o teste, não a copiar de memória.
 3. SÓ DEPOIS, recalcular o SWOT 3/3 por perfil que Zika pediu — com
    `voices` já existindo, o gap muda bastante e merece dado real.
+
+---
+
+# HANDOFF — fechamento sessão de chat [chat-session], 26/07 14:30
+
+## SWOT 3/3 — % nesta sessão
+
+Bruto ~87% (122 testes, catalog+lyrics endurecidos com bugs reais
+corrigidos: dataclass regression, encoding UTF-8, env var persistente).
+Ponderado por importância: continua **30-35%** — sem mudança de
+categoria. Nenhum trabalho desta sessão tocou os dois bloqueadores reais
+(`voices`/geração de voz e licenciamento automatizado, ambos 0/3).
+Campos ISRC/ISWC/ISNI/IPI/UPC/DDEX adicionados ao catalog são estrutura
+(schema pronto), não função (nada preenche automaticamente ainda).
+
+## Commit HEAD desta sessão
+
+```
+376b2cbb2ea4ccf97ff10a35a5d7af3c8b442b1c
+```
+
+## Recado pro próximo GoS7
+
+1. `cleanup_dev_scripts.sh`/`reorganize_scripts.sh` continuam sem
+   serem lidos por nenhuma sessão até agora — ler antes de rodar.
+2. Sessões de chat e Claude Code divergiram sem visibilidade mútua
+   várias vezes nesta madrugada. Sempre `git log --oneline -15`,
+   `git status`, `cat .gitignore` antes de confiar em qualquer
+   HANDOFF.md — inclusive este.
+3. Env vars (`WHISPER_CPP_BIN`, `WHISPER_CPP_MODEL_DIR`) precisam
+   estar no `~/.bashrc` pra persistir entre sessões de shell — `export`
+   avulso na sessão não sobrevive à próxima invocação de script.
+4. **Separação vocal (source separation, tipo Demucs/Spleeter/UVR)**
+   é peça nova identificada nesta sessão, necessária pro caso de uso de
+   karaokê que surgiu na conversa — não existe em nenhum módulo atual.
+   `InstrumentalAdapter` adapta BPM/textura do mix inteiro, não separa
+   voz de instrumental.
+5. `packages/publisher` segue precisando de 1 caso real de split
+   negociado pra fechar o gap de 33% que já é conhecido há várias
+   sessões.
+6. Bloqueador de sempre, repetido porque continua verdadeiro: validar
+   licenciamento com 1 titular de catálogo real antes de investir mais
+   em `voices`/licenciamento — nenhum dos dois avança só com código.
+
+## Nota sobre atribuição de sessão
+
+Todos os commits desta conversa foram atribuídos a
+`scoobiii <sobrinhosj@gmail.com>`, não a um nick de agente de IA —
+Claude (Anthropic) não tem persona fixa entre sessões nem avatar
+próprio, e não deveria entrar como "contribuidor" nomeado no mesmo
+sentido que um dev humano no squad. Se for útil distinguir origem de
+sessão em commits/handoffs futuros, sugestão é um marcador neutro no
+início da mensagem (`[chat-session]` vs `[claude-code]`), não uma
+identidade de personagem.
