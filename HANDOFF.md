@@ -394,3 +394,36 @@ foi pedido `cat` real em vez de confiar em memória — e isso continuou
 prevenindo erro (a réplica exata do `store.py` real, usada pra testar
 `add_vocal_profiles.py` antes de entregar, só foi possível porque o
 conteúdo real tinha sido colado nesta conversa). Continue assim.
+# HANDOFF — sessão de chat, 27/07
+
+## Achado real: FastAPI não instala no Termux
+
+`pydantic-core` (dependência do FastAPI) é Rust/maturin — mesma classe de
+falha que já matou `torch`, `anthropic` SDK e `faster-whisper`/`av` nesta
+sessão. Confirmado por erro real: `Target triple not supported by rustup:
+aarch64-unknown-linux-android`.
+
+**Decisão de arquitetura**: API do MELO não usa NENHUM framework que
+dependa de compilação nativa. `apps/api/handlers.py` + `apps/api/server.py`
+são só stdlib (`http.server`, `json`) — zero dependência nova, testado
+rodando servidor real (não só sintaxe) contra 4 endpoints via
+`urllib.request`.
+
+## O que foi entregue e testado nesta sessão
+
+- `packages/lyrics/hallucination_filter.py` — commitado, 10/10 testes
+- `TRANSLATION_SYSTEM_PROMPT` + `translate_and_suggest_profile` —
+  aplicado via nano, **132 passed** confirmado no Termux
+- `apps/api/handlers.py` + `server.py` — 11 testes de handler + teste de
+  servidor HTTP real (subiu, respondeu requisição de verdade)
+- `docs/DECISOES_ARTISTA_FANTASMA.md` — traduz decisão de negócio
+  (fundo pra artista não identificado) em regra de código concreta
+  (`POST /mix-tracks/{id}/escrow`), não só discussão em prosa
+
+## Pendências que seguem reais
+
+- Perguntar pro DJ o repertório: ação humana, não codificada, ainda não
+  feita.
+- Instrumental isolado pra karaokê: source separation, não existe.
+- `voices/generator.py`: continua sem backend real.
+- Validação com 1 titular de catálogo real: não feita.
