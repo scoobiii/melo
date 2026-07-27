@@ -427,3 +427,69 @@ rodando servidor real (não só sintaxe) contra 4 endpoints via
 - Instrumental isolado pra karaokê: source separation, não existe.
 - `voices/generator.py`: continua sem backend real.
 - Validação com 1 titular de catálogo real: não feita.
+
+
+# curl api MELO
+
+
+Primeiro, achado real: **o `curl` do `/vocal-profiles/match` voltou vazio — isso não deveria acontecer nunca**, mesmo sem match a resposta deveria ser `[]`. Vamos diagnosticar isso já, é prioridade sobre os números.
+
+```bash
+curl -i "http://localhost:8000/vocal-profiles/match?tessitura=medio&textura=rouco"
+```
+
+O `-i` mostra os headers + status code. Se vier `200` com corpo `[]`, é só array vazio (esperado, banco não tem perfil cadastrado ainda — normal). Se vier erro 500 ou conexão recusada, é bug real no servidor (talvez ele tenha caído depois do `Ctrl+C` de alguma sessão anterior). Cola o resultado.
+
+## Contas exatas, sem arredondar pra impressionar
+
+**% da suíte que é da API**: 11 / 143 = **7,7%**
+
+**Quantos testes pra 100% de cobertura da API (linha + branch)**, mapeando gap real por endpoint:
+
+| Endpoint | Testes hoje | Branches sem cobertura | Faltam |
+|---|---|---|---|
+| `criar_mix` | 2 | nenhum | 0 |
+| `listar_tracks` | 1 | filtro `apenas_identificadas=True`, lista não-vazia | 2 |
+| `identificar_track` | 1 | caminho de sucesso (200), campo faltando | 2 |
+| `criar_perfil_vocal` | 1 (indireto) | campo faltando isolado | 1 |
+| `buscar_candidatos_vocais` | 1 | sem match (`[]`), filtro por `nivel` | 2 |
+| `criar_gemeo_digital` | 2 | `artist_type` inválido | 1 |
+| `calcular_royalty` | 2 | campo faltando | 1 |
+| `reservar_escrow` | 1 | `receita_total` negativa | 1 |
+| `health` | 1 | nenhum | 0 |
+| **`server.py` inteiro** | **0** | roteamento, 404 GET/POST, parsing de corpo vazio | **~6** |
+
+**Total pra 100%: ~27 testes** (11 atuais + ~16 novos). O `server.py` está com **zero teste automatizado** — tudo que validamos até agora foi manual via `curl`, o que é bom sinal mas não substitui teste automatizado no CI.
+
+## README — % de entrega real, incluindo o gap que o próprio README tem
+
+Achado: **a API não aparece na tabela de módulos do README** — 122 testes documentados, mas os 11 da API não estão lá (nem em nenhum doc). Isso é inconsistência que o `generate_docs.py` provavelmente não capturou porque `apps/api` não está em `packages/`.
+
+Ponderado por importância (mesmo critério do SWOT anterior):
+
+| Módulo | Promessa | Entrega |
+|---|---|---|
+| audio/lyrics/adaptation/catalog/pipeline | 3/3 cada | ✅ |
+| publisher | 3/3 | 2/3 — falta caso real negociado |
+| ai/prompts | 3/3 | 2/3 — tradução nunca rodou com key paga de verdade |
+| score | 3/3 | 2/3 |
+| **voices** | 3/3 | **1/3** — instrumental ok, voz 0% |
+| **API** | não documentada como parte da promessa ainda | Existe, funciona, mas 5/9 endpoints testados, zero doc pública, zero Swagger |
+
+**Estimativa honesta: ~35-40%**, subiu um pouco desde a última medição (SWOT dizia 30-35%) por causa da API e do escrow, mas `voices` continua sendo o teto do produto.
+
+## Lições de casa pro próximo turno dev — numeradas, não vago
+
+1. **Diagnosticar o `/vocal-profiles/match` vazio** (rodar o `-i` acima primeiro que tudo).
+2. **Escrever os ~16 testes faltando** listados na tabela acima, priorizando `server.py` (zero cobertura hoje).
+3. **Testar via curl os 4 endpoints nunca testados em HTTP real**: `identify`, `POST /vocal-profiles`, `GET /vocal-profiles/match`, `POST /digital-twins`.
+4. **Adicionar `apps/api` na tabela de módulos do README** — hoje é um blind spot da própria documentação automática.
+5. **Decidir Swagger**: sem FastAPI não vem grátis. Opção realista: escrever `openapi.json` manual (~1h de trabalho) ou uma página HTML estática de docs. Decisão de escopo, não código ainda.
+6. **Backlog numerado de verdade pro próximo GOS3** (isso ainda não existe — só prosa em HANDOFF.md espalhada por 6 sessões). Se quiser, escrevo isso agora como próximo passo.
+
+$ curl -i "http://localhost:8000/vocal-profiles/match?tessitura=medio&textura=rouco"
+HTTP/1.0 200 OK
+Server: BaseHTTP/0.6 Python/3.14.6
+Date: Mon, 27 Jul 2026 23:08:50 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 2
