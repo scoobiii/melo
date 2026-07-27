@@ -327,3 +327,70 @@ Rodar `add_industry_ids.sh` (mesmo a versão sem auto-push) numa segunda vez sob
 - Identificação automática de ISRC/ISWC/ISNI/etc. (schema pronto via `add_industry_ids.sh`, quando/se rodado): preenchimento automático continua sendo outro projeto, não resolvido por adicionar a coluna.
 - `voices/generator.py`: interface pronta, zero backend de voz real plugado. Continua sendo o gargalo central do produto.
 - Validação com 1 titular de catálogo real: segue não feita, é bloqueador citado em múltiplas sessões anteriores a esta.
+# HANDOFF — fechamento sessão de chat, 26/07 noite
+
+## Estado real confirmado nesta sessão (não estimado)
+
+- `scripts/full_mix_analysis.py` revisado (código real, não suposição):
+  segmenta + transcreve num script só, via `soundfile` (sem depender de
+  ffmpeg), mas **não salva progresso incrementalmente** (só grava o JSON
+  no final do loop inteiro) e usa `--modelo tiny` como default — risco se
+  cair no meio de um mix longo, e qualidade pior que `small` se rodado
+  sem o parâmetro explícito.
+- Rodada real de produção usou `--modelo small` explícito, terminou com
+  sucesso: **175 segmentos**, `output/tipico_mix_vol2_dj_phantom.json`
+  populado. Amostra dos 5 primeiros mostrou qualidade boa/coerente em
+  português/espanhol, com uma exceção reconhecível: `"¡Suscríbete!
+  ¡Suscríbete!"` no segmento 1 — **alucinação documentada do Whisper**,
+  padrão de treino em dados do YouTube que "ouve" pedidos de inscrição em
+  trechos de silêncio/instrumental puro. Sugestão de filtro futuro:
+  descartar/marcar como `[MÚSICA]` qualquer transcrição contendo
+  `suscríbete`/`subscribe`/variantes.
+- `packages/catalog/store.py` estendido com `vocal_profiles` (tessitura +
+  textura + nível, taxonomia fechada) e `digital_twins` (gêmeo digital
+  licenciado, com trava de código que impede `ativo=True` sem
+  `status_consentimento='licenciado'`). Aplicado via
+  `scripts/add_vocal_profiles.py`, que desta vez implementa a lição #9
+  corretamente: idempotência checada pelo *resultado* (`class
+  VocalProfile` já existe no arquivo?), validação de todas as âncoras
+  antes de qualquer escrita (tudo ou nada), sem auto-commit. Testado 2x
+  em sandbox antes de chegar ao usuário (1ª aplica, 2ª detecta e não
+  duplica) e rodado de verdade no repo: **122 passed**.
+
+## Pendência imediata — falta só isso pra fechar o ciclo
+
+```bash
+cd ~/MELO
+git diff -- packages/catalog/store.py   # revisar antes de confiar
+git add packages/catalog/store.py
+git commit -m "feat(catalog): vocal_profiles + digital_twins (perfis vocais estruturados e gêmeos digitais licenciados)"
+git push origin main
+```
+
+## Pendências antigas, ainda não resolvidas por nenhuma sessão
+
+- 4 arquivos untracked de sessão anterior sem decisão: `send_to_colab.sh`,
+  `fetch_from_colab.sh`, `populate_tracks.py`,
+  `scripts/detect_track_boundaries.py` — revisados, tecnicamente seguros,
+  só falta `git add` explícito se for pra manter.
+- `cleanup_dev_scripts.sh` / `reorganize_scripts.sh`: seguem sem leitura.
+- Fingerprinting de faixa em repertório de nicho: só 1 teste real (AudD),
+  não reconheceu — inconclusivo.
+- `packages/voices/generator.py`: interface pronta
+  (`InstrumentalAdapter` funcional, `VoiceGenerator` exige backend), zero
+  backend de voz real plugado. Segue sendo o gargalo central do produto.
+- Validação com 1 titular de catálogo real: não feita, bloqueador citado
+  em múltiplas sessões.
+- `full_mix_analysis.py` merece um ajuste de dois pontos, não feito ainda:
+  (1) trocar default de `--modelo tiny` para `small`; (2) adicionar
+  checkpoint incremental (grava a cada segmento, não só no final) — usar
+  o padrão de `scripts/transcribe_segments_overnight.py` (não usado nesta
+  sessão, mas escrito e testado logicamente) como referência.
+
+## Nota de disciplina que se manteve firme a sessão inteira
+
+Toda vez que um arquivo já existente precisou ser lido antes de editar,
+foi pedido `cat` real em vez de confiar em memória — e isso continuou
+prevenindo erro (a réplica exata do `store.py` real, usada pra testar
+`add_vocal_profiles.py` antes de entregar, só foi possível porque o
+conteúdo real tinha sido colado nesta conversa). Continue assim.
