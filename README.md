@@ -3,58 +3,26 @@
 Plataforma de análise, transcrição e adaptação musical entre gêneros regionais
 (atualmente: raízes panamenhas — típico, cumbia, tamborito — correlacionadas
 com gêneros brasileiros de tradição regional: forró, pisadinha, vanerão,
-sertanejo em suas variantes).
+sertanejo).
 
 ## Status do projeto
 
-Estágio: **núcleo técnico funcional, validado com áudio real**. Ainda não é
-produto (sem geração/regravação de áudio, sem distribuição/licenciamento
-automatizado). Ver [ROADMAP.md](./ROADMAP.md).
+**Estágio:** núcleo técnico funcional, validado com áudio real.
 
-<!-- BEGIN:MODULES -->
-| Módulo | O que faz | Testes |
-|---|---|---|
-| `packages/audio` | Metadados de áudio (duração, sample rate, canais) | 15 |
-| `packages/lyrics` | Transcrição de letra via Whisper (local) | 5 |
-| `packages/adaptation` | BPM, correlação panamá↔brasil, segmentação de letra e de mix multi-artista | 24 |
-| `packages/catalog` | Persistência (SQLite) de artistas/produtores/faixas/vozes + wiring de tradução de gênero | 27 |
-| `packages/pipeline` | Orquestra audio → adaptation → lyrics numa chamada só | 4 |
-| `packages/publisher` | Motor de split/payout de royalty (percentuais negociados fora do código) | 8 |
-| `packages/ai`, `packages/prompts` | Adaptação de letra via LLM: prompt engineering isolado sem I/O (system prompt, few-shot) + client Anthropic API (retries, parsing XML) | 19 |
-| `packages/score` | Métrica de aderência não-binária (correlação de gênero + confiança vocal + cobertura de dados) | 9 |
-| `packages/voices` | InstrumentalAdapter funcional e testado (time-stretch + EQ de textura, não-generativo); VoiceGenerator é skeleton — exige backend externo (RVC/Coqui/Bark), não sintetiza voz sozinho | 11 |
+**O que funciona:**
+- Análise de áudio (duração, sample rate, BPM, RMS, centroide)
+- Transcrição de letras com Whisper (modelo small, sem filtros)
+- Segmentação de mixes longos (identificação de faixas por início/fim)
+- Detecção de autoapresentações (cantor/DJ)
+- Correlação de gêneros (Panamá ↔ Brasil)
+- Persistência em SQLite (artistas, faixas, mixes, royalties)
+- Testes unitários (122+, 100% verdes)
 
-**Total: 122 testes, suíte 100% verde.**
-<!-- END:MODULES -->
+**O que NÃO funciona (e não está no README):**
+- Geração/regravação de áudio com voz real (VoiceGenerator é skeleton)
+- Fingerprinting automático em repertório de nicho (AudD falhou)
+- Source separation para karaokê (não existe)
+- API com testes completos e Swagger (parcial)
+- Salvamento incremental no `full_mix_analysis.py` (pendente)
 
-## Quickstart
-
-```bash
-# instalar dependências mínimas
-pip install soundfile numpy scipy pytest --break-system-packages
-
-# rodar a suíte de testes
-make test
-
-# rodar o pipeline sobre um arquivo de áudio real
-python scripts/run_pipeline.py caminho/faixa.wav --genero tipico_panameno
-```
-
-MP3 não é lido diretamente (ver [docs/USER_GUIDE.md](./docs/USER_GUIDE.md#formatos-de-áudio)) —
-converta para WAV com `ffmpeg` antes.
-
-## Aviso legal — fontes de áudio
-
-Este projeto **não inclui, e não deve incluir**, qualquer mecanismo de
-extração/download de áudio de plataformas de streaming (SoundCloud, YouTube,
-Spotify etc.) sem licença. Ouvir uma faixa gratuitamente numa plataforma não
-concede direito de reprodução/distribuição. Regravações ("covers") exigem
-licença mecânica (no Brasil, via ECAD/editora) antes de qualquer uso
-comercial. Ver [docs/USER_GUIDE.md](./docs/USER_GUIDE.md#fontes-de-áudio-legítimas).
-
-## Documentação
-
-- [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) — como rodar o pipeline, formatos suportados, interpretação do output
-- [docs/MIX_ANALYSIS.md](./docs/MIX_ANALYSIS.md) — analisar mix longo com múltiplos artistas (segmentação + transcrição local)
-- [docs/DEVOPS.md](./docs/DEVOPS.md) — ambiente, dependências, testes, estrutura dos módulos
-- [BUSINESS_PLAN.md](./BUSINESS_PLAN.md), [ROADMAP.md](./ROADMAP.md)
+Ver [ROADMAP.md](./ROADMAP.md) e [docs/BACKLOG.md](./docs/BACKLOG.md).
