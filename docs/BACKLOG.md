@@ -61,6 +61,9 @@
 - ✅ `vocal_profiles` + `digital_twins` com trava de consentimento (26/07 noite)
 - ✅ HANDOFF.md consolidado em arquivo único (26/07)
 - ✅ Scripts de sprint órfãos removidos/arquivados em `archive/session_scripts/`
+- ✅ `claim_handle` rejeitava @ duplicado só na documentação — faltava UNIQUE INDEX; corrigido + teste de regressão (28/07, commit 784ca0a)
+- ✅ `HANDOFF.md` limpo — conteúdo não-técnico movido pra `notes/` (28/07, commit 0aeb644)
+- ✅ Testes de API (`test_api_handlers_extra.py`, `test_api_server.py`) commitados, incluindo fix de rota `/mix-tracks/{id}/escrow` (28/07, commit 2556aca)
 
 ## Notas de processo (não são tarefas, são regras já validadas)
 
