@@ -30,13 +30,9 @@
 6. **~16 testes faltando nos endpoints da API** pra 100% de cobertura
    real (branches de filtro, campo faltando, casos de erro) — tabela
    completa por endpoint já existe no HANDOFF.md de 27/07, copiar de lá.
-7. **`full_mix_analysis.py`**: (a) default de `--modelo` é `tiny`, devia
-   ser `small` (tiny é pior qualidade); (b) não salva progresso
-   incrementalmente, só grava JSON no final — risco real se o processo
-   cair no meio de um mix longo.
-8. **Alucinação conhecida do Whisper** (`"¡Suscríbete!"` em trechos
-   instrumentais/silêncio) sem filtro — sugestão já registrada: descartar
-   ou marcar `[MÚSICA]` transcrição contendo `suscríbete`/`subscribe`.
+7. **`full_mix_analysis.py` (b)**: não salva progresso incrementalmente,
+   só grava JSON no final — risco real se o processo cair no meio de um
+   mix longo. **Ainda pendente.**
 
 ## P2 — Decisões de escopo pendentes (não é bug, é escolha)
 
@@ -53,6 +49,17 @@
     nenhum módulo.
 
 ## Concluído recentemente (não reabrir sem motivo novo)
+
+- ✅ `full_mix_analysis.py` item 7(a): default `--modelo` mudado de `tiny`
+  para `small`. Item 8: filtro de alucinação conhecida do Whisper
+  (`suscríbete`/`subscribe` em trecho curto) adicionado — marca
+  `[MÚSICA]` em vez de aceitar como transcrição real (sessão de chat,
+  28-29/07). **Nota de processo**: esses dois itens já estavam
+  resolvidos/decididos aqui no BACKLOG antes desta sessão começar a
+  mexer no arquivo; uma correção anterior desta mesma sessão (aviso de
+  tiny sem trocar o default) contrariou a decisão sem checar este
+  arquivo primeiro — corrigido agora, mas fica registrado como lição:
+  checar `docs/BACKLOG.md` ANTES de decidir design, não depois.
 
 - ✅ whisper.cpp validado ponta-a-ponta com áudio real (27/07)
 - ✅ `handle` (@) pra pessoas reais no catálogo, nunca automático/IA (27/07)

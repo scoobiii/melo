@@ -46,11 +46,33 @@ def extract_clip(src_path: str, start_sec: float, end_sec: float, out_path: str)
     sf.write(out_path, y[i0:i1], sr)
 
 
+_ALUCINACOES_CONHECIDAS = ("suscríbete", "suscribete", "subscribe", "like and subscribe")
+
+
+def _filtrar_alucinacao_conhecida(texto: str) -> str:
+    """Whisper tem alucinacao documentada em trechos instrumentais/silenciosos,
+    tipicamente inserindo frases de call-to-action de video (ex: pedidos de
+    inscricao em canal) que nao existem no audio real. Marca como [MUSICA]
+    em vez de aceitar como transcricao real quando o texto e dominado por
+    esses padroes conhecidos.
+    """
+    baixo = texto.lower().strip()
+    if not baixo:
+        return texto
+    if any(padrao in baixo for padrao in _ALUCINACOES_CONHECIDAS):
+        # se o texto e majoritariamente so a alucinacao (poucas palavras
+        # alem do padrao conhecido), marca como instrumental
+        palavras = baixo.split()
+        if len(palavras) <= 6:
+            return "[MÚSICA] (transcrição descartada: padrão de alucinação conhecido do Whisper)"
+    return texto
+
+
 def analyze_mix(
     wav_path: str,
     min_seg_sec: float = 20.0,
     max_segments: int = 200,
-    modelo: str = "tiny",
+    modelo: str = "small",
     idioma: str = "es",
 ) -> list:
     """Segmenta o mix inteiro e transcreve cada segmento. Retorna lista de
@@ -66,6 +88,7 @@ def analyze_mix(
             extract_clip(wav_path, seg.start_sec, seg.end_sec, clip_path)
             try:
                 texto = transcribe_audio(clip_path, modelo=modelo, idioma=idioma)
+                texto = _filtrar_alucinacao_conhecida(texto)
             except Exception as e:
                 texto = f"[ERRO transcricao: {e}]"
 
@@ -90,7 +113,7 @@ def main() -> None:
     parser.add_argument("--min-seg-sec", type=float, default=20.0)
     parser.add_argument("--max-segments", type=int, default=200)
     parser.add_argument(
-        "--modelo", default="tiny",
+        "--modelo", default="small",
         help="Modelo whisper: tiny/base/small/medium/large-v3 "
              "(tiny = mais rapido, recomendado para varredura inicial em arquivo longo)",
     )
