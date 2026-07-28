@@ -707,6 +707,62 @@ class CatalogStore:
                 ),
             )
 
+    _TABELAS_COM_HANDLE = ("source_artists", "destination_artists", "produtores")
+
+    def _ensure_handle_columns(self, conn) -> None:
+        """Idempotente: checa PRAGMA table_info (resultado real), não âncora
+        de texto — ver HANDOFF.md lição #9.
+
+        `handle` é identificador público (@) de PESSOA FÍSICA REAL que
+        reivindicou o próprio cadastro — artista, produtor, parceiro.
+        NUNCA é atribuído automaticamente (import, fingerprint, cadastro
+        inicial) e NUNCA existe para sessões/agentes de IA — essa distinção
+        é decisão de produto, documentada em HANDOFF.md, não um detalhe de
+        implementação a ser "relaxado" depois.
+        """
+        for tabela in self._TABELAS_COM_HANDLE:
+            cols = [row["name"] for row in conn.execute(f"PRAGMA table_info({tabela})")]
+            if "handle" not in cols:
+                conn.execute(f"ALTER TABLE {tabela} ADD COLUMN handle TEXT")
+            if "handle_reivindicado_em" not in cols:
+                conn.execute(f"ALTER TABLE {tabela} ADD COLUMN handle_reivindicado_em TEXT")
+            # UNIQUE por tabela (não cross-table) — @ colide só dentro do
+            # mesmo tipo de cadastro. SQLite permite múltiplos NULL em
+            # índice UNIQUE, então cadastros sem handle ainda não são afetados.
+            conn.execute(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS "
+                f"idx_{tabela}_handle_unico ON {tabela}(handle)"
+            )
+
+    def claim_handle(self, tabela: str, entity_id: int, handle: str) -> None:
+        """Reivindica um @ pra um cadastro já existente (artista/produtor).
+
+        A pessoa real confirma que é ela mesma — isso não é preenchido
+        durante import/cadastro automático. `handle` deve ser único; se já
+        estiver em uso, levanta sqlite3.IntegrityError (não silenciado —
+        colisão de @ é erro real, não algo pra sobrescrever silenciosamente).
+
+        Raises:
+            ValueError: se `tabela` não for uma das permitidas, ou `handle`
+                for vazio/só espaço.
+        """
+        if tabela not in self._TABELAS_COM_HANDLE:
+            raise ValueError(
+                f"Tabela inválida para handle: {tabela!r}. "
+                f"Use uma de {self._TABELAS_COM_HANDLE}."
+            )
+        if not handle or not handle.strip():
+            raise ValueError("handle não pode ser vazio.")
+
+        from datetime import datetime, timezone
+
+        with self._connect() as conn:
+            self._ensure_handle_columns(conn)
+            conn.execute(
+                f"UPDATE {tabela} SET handle = ?, handle_reivindicado_em = ? WHERE id = ?",
+                (handle.strip(), datetime.now(timezone.utc).isoformat(), entity_id),
+            )
+
     def list_tracks_for_mix(
         self, mix_id: int, apenas_identificadas: bool = False
     ) -> list[MixTrack]:

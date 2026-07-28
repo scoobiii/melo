@@ -115,3 +115,19 @@ def test_catalog_store_with_real_file_creates_parent_dir_and_persists(tmp_path):
     artistas = store_reaberto.list_source_artists(genero_origem="cumbia_panamena")
     assert len(artistas) == 1
     assert artistas[0].nome == "Y"
+
+
+def test_claim_handle_rejects_duplicate(store):
+    """claim_handle() promete sqlite3.IntegrityError em @ duplicado
+    (ver docstring em store.py) — hoje não há UNIQUE INDEX, então isso
+    falha silenciosamente. Este teste deve FALHAR até o fix de
+    _ensure_handle_columns."""
+    import sqlite3
+
+    id1 = store.add_source_artist("Artista A", "tipico_panameno", faixa_original="Faixa 1")
+    id2 = store.add_source_artist("Artista B", "tipico_panameno", faixa_original="Faixa 2")
+
+    store.claim_handle("source_artists", id1, "@artista")
+
+    with pytest.raises(sqlite3.IntegrityError):
+        store.claim_handle("source_artists", id2, "@artista")
