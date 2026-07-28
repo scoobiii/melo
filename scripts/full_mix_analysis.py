@@ -46,15 +46,36 @@ def extract_clip(src_path: str, start_sec: float, end_sec: float, out_path: str)
     sf.write(out_path, y[i0:i1], sr)
 
 
+def _salvar_incremental(resultados: list, out_path: Path) -> None:
+    """Grava o progresso atual de forma atomica: escreve em arquivo
+    temporario no mesmo diretorio e substitui via Path.replace (atomico
+    no mesmo filesystem). Se o processo morrer no meio da escrita, o
+    arquivo final nunca fica corrompido/parcial - ou tem o conteudo
+    anterior completo, ou o novo completo, nunca os dois misturados.
+    Resolve BACKLOG item 7(b): antes, um crash no meio de um mix longo
+    perdia todo o progresso (JSON so era escrito no final).
+    """
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(resultados, f, indent=2, ensure_ascii=False)
+    tmp_path.replace(out_path)
+
+
 def analyze_mix(
     wav_path: str,
     min_seg_sec: float = 20.0,
     max_segments: int = 200,
     modelo: str = "small",
     idioma: str = "es",
+    out_path: "Path | None" = None,
 ) -> list:
     """Segmenta o mix inteiro e transcreve cada segmento. Retorna lista de
-    dicts prontos para serializacao (fronteiras + BPM + transcricao)."""
+    dicts prontos para serializacao (fronteiras + BPM + transcricao).
+
+    Se out_path for fornecido, grava progresso incrementalmente apos cada
+    segmento processado (escrita atomica) - permite ver o que ja foi
+    feito mesmo se o processo for interrompido no meio.
+    """
     segments = segment_audio_mix(
         wav_path, min_seg_sec=min_seg_sec, max_segments=max_segments,
     )
@@ -79,6 +100,10 @@ def analyze_mix(
             d["beneficiary"] = None
             d["royalty_pct"] = None
             resultados.append(d)
+
+            if out_path is not None:
+                _salvar_incremental(resultados, out_path)
+                print(f"  [{len(resultados)}/{len(segments)}] segmento {seg.indice} salvo (progresso incremental)")
 
     return resultados
 
@@ -106,19 +131,20 @@ def main() -> None:
             "resultante para atribuicao de autoria/artista sem reprocessar os "
             "segmentos relevantes com --modelo small ou maior."
         )
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
     resultados = analyze_mix(
         args.wav_path,
         min_seg_sec=args.min_seg_sec,
         max_segments=args.max_segments,
         modelo=args.modelo,
         idioma=args.idioma,
+        out_path=out_path,
     )
     print(f"  {len(resultados)} segmentos processados")
 
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(resultados, f, indent=2, ensure_ascii=False)
+    _salvar_incremental(resultados, out_path)
 
     print(f"\n==> Salvo em {out_path} - {len(resultados)} segmentos com transcricao.")
     print("    Campos artist/work/label/beneficiary/royalty_pct ainda vazios -")

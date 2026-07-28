@@ -30,9 +30,7 @@
 6. **~16 testes faltando nos endpoints da API** pra 100% de cobertura
    real (branches de filtro, campo faltando, casos de erro) — tabela
    completa por endpoint já existe no HANDOFF.md de 27/07, copiar de lá.
-7. **`full_mix_analysis.py` (b)**: não salva progresso incrementalmente,
-   só grava JSON no final — risco real se o processo cair no meio de um
-   mix longo. **Ainda pendente.**
+
 
 ## P2 — Decisões de escopo pendentes (não é bug, é escolha)
 
@@ -49,6 +47,8 @@
     nenhum módulo.
 
 ## Concluído recentemente (não reabrir sem motivo novo)
+
+- ✅ `full_mix_analysis.py` item 7(b): salvamento incremental implementado — grava progresso via escrita atômica (arquivo `.tmp` + `Path.replace`) após cada segmento processado, não só no final. Crash no meio de um mix longo agora preserva tudo já processado.
 
 - ✅ `full_mix_analysis.py` item 7(a): default `--modelo` mudado de `tiny`
   para `small`. Item 8: filtro de alucinação conhecida do Whisper
