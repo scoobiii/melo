@@ -19,3 +19,5 @@ whisper.cpp/
 archive/
 *.db
 *.sqlite3
+output/*.wav
+output/**/*.wav
