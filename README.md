@@ -68,22 +68,3 @@ Backlog e decisões: docs/BACKLOG.md
 
 ```
 
----
-
-## 🔧 Ações imediatas para desfazer a mequetrefice
-
-```bash
-cd ~/MELO
-# Substituir README pela versão honesta
-cat > README.md << 'EOF'
-# ... (conteúdo acima)
-EOF
-
-git add README.md
-git commit -m "docs: README honesto, sem promessas falsas"
-git push origin main
-```
-
----
-
-
