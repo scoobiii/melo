@@ -71,6 +71,7 @@ def analyze_mix(
 
             d = asdict(seg)
             d["transcricao"] = texto
+            d["modelo_usado"] = modelo
             d["artist_hint"] = None
             d["artist"] = None
             d["work"] = None
@@ -97,6 +98,14 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"[1/2] Segmentando {args.wav_path} ...")
+    if args.modelo == "tiny":
+        print(
+            "    [aviso] modelo 'tiny' tem risco documentado de alucinacao "
+            "(inventa palavras/nomes plausiveis em trechos ambiguos/ruidosos). "
+            "OK para varredura inicial de fronteiras/BPM. NAO use a transcricao "
+            "resultante para atribuicao de autoria/artista sem reprocessar os "
+            "segmentos relevantes com --modelo small ou maior."
+        )
     resultados = analyze_mix(
         args.wav_path,
         min_seg_sec=args.min_seg_sec,
