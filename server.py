@@ -6,6 +6,18 @@ from pathlib import Path
 app = Flask(__name__, static_folder="static")
 DB_PATH = "outputs/catalogo_validado.sqlite"
 
+def parse_time(timestr):
+    """Converte HH:MM:SS para segundos."""
+    if not timestr:
+        return 0.0
+    parts = str(timestr).split(':')
+    if len(parts) == 3:
+        return float(int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]))
+    elif len(parts) == 2:
+        return float(int(parts[0]) * 60 + int(parts[1]))
+    else:
+        return float(parts[0])
+
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
@@ -24,7 +36,7 @@ def get_tracks():
     tracks = [
         {
             "segment": row[0],
-            "start": row[1] or 0,
+            "start": parse_time(row[1]),
             "artist": row[2] or "",
             "title": row[3] or "",
             "confidence": row[4],
