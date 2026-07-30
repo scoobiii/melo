@@ -22,3 +22,6 @@ archive/
 output/*.wav
 output/**/*.wav
 output/
+outputs/
+static/tipico_mix.mp3
+*.mp3
