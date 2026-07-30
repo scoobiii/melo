@@ -51,5 +51,21 @@ def get_tracks():
 def health():
     return jsonify({"status": "ok", "db": str(DB_PATH)})
 
+@app.route("/api/mix")
+def get_mix():
+    conn = sqlite3.connect("melo_catalog.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, instagram, soundcloud, download_link, call_to_action FROM mixes WHERE id = 1")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return jsonify({
+            "id": row[0],
+            "instagram": row[1] or "",
+            "soundcloud": row[2] or "",
+            "download_link": row[3] or "",
+            "call_to_action": row[4] or ""
+        })
+    return jsonify({"error": "Mix not found"}), 404
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
