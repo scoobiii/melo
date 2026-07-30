@@ -199,22 +199,36 @@ Segmento 23 (7m59s - 8.0m19s):
   metadados de plataformas de terceiros. Risco juridico mais baixo,
   compativel com o aviso legal ja existente no README.
 
-## Concluido (28/07) - resolvido o misterio "Arielis Nicole" + merge de curadoria
+- ✅ validate_catalog.py criado.
+  - Normaliza artista/título.
+  - Consulta MusicBrainz.
+  - Calcula score de confiança.
+  - Exporta JSON, CSV, SQLite e relatório.
+  - Não realiza fingerprinting.
+  - Utiliza catálogo previamente obtido por transcrição/curadoria.
 
-- RESOLVIDO: nome de artista confirmado como Arielis Nicole (faixa "Y
-  Llorarás e Sufrirás"), via curadoria manual (tracklist oficial importada
-  em melo-transcription-1785367803211.json). Bate com o que o Whisper
-  small local ja tinha captado antes (sessao de 26/07) - confirma que o
-  modelo local acertou onde a transcricao nativa do YouTube falhou
-  ([Musica] no mesmo trecho, ver docs/TRANSCRICAO_COMPARATIVA.md).
-- scripts/merge_tracklist_into_whisper.py: mescla curadoria manual
-  (mix_id=2, 15 faixas, 10 com artista) na segmentacao fina do Whisper
-  (mix_id=1, 175 segmentos), casando por sobreposicao de intervalo de
-  tempo. --dry-run obrigatorio antes de --apply. Rodado de verdade:
-  73/175 segmentos do mix 1 vinculados a artista/titulo confirmado
-  (COUNT confirmado via sqlite3 apos --apply, nao estimado).
-- Decisao de arquitetura mantida: identificacao de artista via curadoria
-  manual estruturada (JSON com timestamps), nao fingerprinting automatico
-  (AudD ja testado, inconclusivo em repertorio de nicho) nem scraping de
-  metadados de plataformas de terceiros. Risco juridico mais baixo,
-  compativel com o aviso legal ja existente no README.
+## Sessão de engenharia — 29/07/2026
+
+Commit de referência: `98e7daf`
+
+### Decisões
+
+- Padronização definitiva do diretório `output/`.
+- Inclusão do `validate_catalog.py`.
+- MusicBrainz adotado para validação e enriquecimento de metadados.
+- whisper.cpp (`small`) permanece como fluxo recomendado.
+- Curadoria manual continua sendo a fonte de verdade para identificação de artistas.
+
+Arquitetura consolidada:
+
+```
+Áudio
+  ↓ whisper.cpp
+Curadoria manual
+  ↓
+merge_tracklist_into_whisper.py
+  ↓
+validate_catalog.py
+  ↓
+SQLite / JSON / CSV
+```

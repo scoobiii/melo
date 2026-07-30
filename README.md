@@ -68,3 +68,31 @@ Backlog e decisões: docs/BACKLOG.md
 
 ```
 
+---
+
+## Fluxo atual do projeto
+
+```
+Áudio
+  ↓ whisper.cpp (small)
+Transcrição
+  ↓ Curadoria manual (tracklist)
+merge_tracklist_into_whisper.py
+  ↓
+validate_catalog.py (MusicBrainz)
+  ↓
+SQLite / JSON / CSV
+```
+
+### Comandos principais
+
+```bash
+make help
+make install
+make test
+make catalog
+```
+
+O `validate_catalog.py` **não realiza fingerprinting**. Ele utiliza
+artista/título previamente obtidos por transcrição e/ou curadoria manual
+para validar e enriquecer metadados usando a API oficial do MusicBrainz.
