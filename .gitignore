@@ -25,3 +25,10 @@ output/
 outputs/
 static/tipico_mix.mp3
 *.mp3
+
+# Letra/transcricao com dado real de terceiro (nome, letra comercial) --
+# nunca versionar, nem que renomeado. Ver docs/MIX_ANALYSIS.md#licenciamento
+# e incidente 30/07 (exposto e removido via git filter-repo).
+melo-transcription*.json
+manifest*.json
+*.srt
