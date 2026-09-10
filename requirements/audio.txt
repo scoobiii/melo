@@ -6,3 +6,5 @@ soundfile
 audioread
 pydub
 matplotlib
+# Source separation (vocal/instrumental)
+demucs>=4.0.1
