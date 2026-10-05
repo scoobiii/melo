@@ -1,0 +1,114 @@
+name: YouTube Audio -> MP3 -> MELO
+
+on:
+  workflow_dispatch:
+    inputs:
+      youtube_url:
+        description: "Authorized YouTube URL"
+        required: true
+        type: string
+      run_melo:
+        description: "Run MELO validation/analysis after extraction"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  extract-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg python3
+          python3 -m pip install --disable-pip-version-check yt-dlp
+
+      - name: Validate YouTube URL
+        env:
+          YOUTUBE_URL: ${{ inputs.youtube_url }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlparse
+
+          raw = os.environ["YOUTUBE_URL"].strip()
+          u = urlparse(raw)
+          host = (u.hostname or "").lower()
+          allowed = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"}
+          if u.scheme != "https" or host not in allowed:
+              raise SystemExit("FAIL: URL must be an HTTPS YouTube URL")
+          print("URL validation: PASS")
+          PY
+
+      - name: Extract MP3
+        env:
+          YOUTUBE_URL: ${{ inputs.youtube_url }}
+        run: |
+          mkdir -p artifacts
+          yt-dlp             --no-playlist             --extract-audio             --audio-format mp3             --audio-quality 0             --output 'artifacts/%(id)s.%(ext)s'             "$YOUTUBE_URL"
+
+      - name: Validate MP3 with ffprobe
+        run: |
+          set -euo pipefail
+          MP3="$(find artifacts -maxdepth 1 -type f -name '*.mp3' -print -quit)"
+          test -n "$MP3"
+          test -s "$MP3"
+
+          CODEC="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$MP3")"
+          DURATION="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$MP3")"
+
+          test "$CODEC" = "mp3"
+          python3 - "$DURATION" <<'PY'
+          import sys
+          duration = float(sys.argv[1])
+          if duration <= 0:
+              raise SystemExit("FAIL: duration must be > 0")
+          print(f"Duration validation: PASS ({duration:.3f}s)")
+          PY
+
+          SHA256="$(sha256sum "$MP3" | awk '{print $1}')"
+          printf '%s\n' "$SHA256" > artifacts/SHA256SUM
+          printf '%s\n' "codec=$CODEC" "duration_seconds=$DURATION" "sha256=$SHA256" > artifacts/media-validation.txt
+
+          echo "Codec validation: PASS ($CODEC)"
+          echo "SHA-256: $SHA256"
+
+      - name: Prepare MELO input
+        if: inputs.run_melo
+        run: |
+          mkdir -p melo-input
+          cp artifacts/*.mp3 melo-input/input.mp3
+          ffmpeg -y -hide_banner -loglevel error             -i melo-input/input.mp3             -ar 16000 -ac 1 -c:a pcm_s16le             melo-input/input.wav
+          ffprobe -v error -show_entries stream=codec_name,sample_rate,channels             -of default=nw=1 melo-input/input.wav
+
+      - name: Run MELO pipeline validation
+        if: inputs.run_melo
+        run: |
+          python3 -m pip install --disable-pip-version-check -e .
+          python3 -m pytest tests/ -q
+
+      - name: Upload MP3 and validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: melo-youtube-audio-${{ github.run_id }}
+          path: |
+            artifacts/*.mp3
+            artifacts/SHA256SUM
+            artifacts/media-validation.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload MELO input
+        if: inputs.run_melo
+        uses: actions/upload-artifact@v4
+        with:
+          name: melo-input-${{ github.run_id }}
+          path: melo-input/input.wav
+          if-no-files-found: error
+          retention-days: 7
