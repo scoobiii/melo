@@ -39,7 +39,7 @@ jobs:
             mapfile -t files < <(
               git diff --name-only "origin/${{ github.base_ref }}...HEAD" --                 'packages/**/*.py' 'tests/**/*.py' 'scripts/**/*.py'                 '*.py' '**/*.py'                 | sort -u
             )
-            if ((${files.length} == 0)); then
+            if ((${#files[@]} == 0)); then
               echo "No Python files changed; Ruff gate: PASS"
               exit 0
             fi
