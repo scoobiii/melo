@@ -50,23 +50,13 @@ class TestAudioValidator:
             assert "Unsupported format" in msg
     
     def test_file_too_large(self, validator, temp_wav_file, monkeypatch):
-        """Test file size limit validation.
-
-        Path.stat virou atributo read-only em instâncias no Python 3.14
-        (PosixPath usa __slots__) — atribuição direta como
-        `temp_wav_file.stat = lambda: ...` quebra com AttributeError.
-        Fix: monkeypatch.setattr no nível da classe Path, restaurado
-        automaticamente no teardown do monkeypatch (escopo por teste).
-        """
-        class _FakeStat:
-            st_size = 200 * 1024 * 1024
-
-        monkeypatch.setattr(Path, "stat", lambda self: _FakeStat())
+        """Test file size limit without patching pathlib internals."""
+        monkeypatch.setattr(validator, "MAX_FILE_SIZE", 1)
 
         is_valid, msg = validator.validate_file(temp_wav_file)
         assert not is_valid
         assert "File too large" in msg
-    
+
     def test_valid_audio_file(self, validator, temp_wav_file):
         """Test validation of valid audio file."""
         is_valid, msg = validator.validate_file(temp_wav_file)
