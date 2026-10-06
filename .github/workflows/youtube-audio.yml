@@ -25,14 +25,22 @@ jobs:
 
       - name: Install media tools
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3
-          python3 -m pip install --disable-pip-version-check yt-dlp
+          python3 -m pip install --disable-pip-version-check --upgrade yt-dlp
+          yt-dlp --version
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Validate YouTube URL
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import os
           from urllib.parse import urlparse
@@ -50,6 +58,7 @@ jobs:
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
         run: |
+          set -euo pipefail
           mkdir -p artifacts
           yt-dlp             --no-playlist             --extract-audio             --audio-format mp3             --audio-quality 0             --output 'artifacts/%(id)s.%(ext)s'             "$YOUTUBE_URL"
 
@@ -82,6 +91,7 @@ jobs:
       - name: Prepare MELO input
         if: inputs.run_melo
         run: |
+          set -euo pipefail
           mkdir -p melo-input
           cp artifacts/*.mp3 melo-input/input.mp3
           ffmpeg -y -hide_banner -loglevel error             -i melo-input/input.mp3             -ar 16000 -ac 1 -c:a pcm_s16le             melo-input/input.wav
@@ -90,6 +100,7 @@ jobs:
       - name: Run MELO pipeline validation
         if: inputs.run_melo
         run: |
+          set -euo pipefail
           python3 -m pip install --disable-pip-version-check -e .
           python3 -m pytest tests/ -q
 
