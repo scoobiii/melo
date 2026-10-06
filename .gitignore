@@ -32,3 +32,5 @@ static/tipico_mix.mp3
 melo-transcription*.json
 manifest*.json
 *.srt
+.venv/
+*.egg-info/

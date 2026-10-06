@@ -1,8 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name="melo"
-version="0.1.0"
-description="Music Adaptation Factory"
-requires-python=">=3.12"
+name = "melo"
+version = "0.1.0"
+description = "Music Adaptation Factory"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "requests",
+    "scipy",
+    "soundfile",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["apps*", "packages*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

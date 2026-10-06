@@ -86,7 +86,7 @@ jobs:
         if: inputs.run_melo
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -e .
+          python3 -m pip install --disable-pip-version-check -e ".[test]"
           python3 -m pytest tests/ -q
 
       - name: Upload MP3 and validation artifact
