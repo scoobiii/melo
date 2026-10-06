@@ -29,43 +29,11 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3
-<<<<<<< HEAD
-          python3 -m pip install --disable-pip-version-check --upgrade yt-dlp
-          yt-dlp --version
-
-      - name: Set up Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
-=======
->>>>>>> f4edb9c (ci: consume MP3 from release instead of yt-dlp)
 
       - name: Fetch MP3 from release
         env:
-<<<<<<< HEAD
-          YOUTUBE_URL: ${{ inputs.youtube_url }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          from urllib.parse import urlparse
-
-          raw = os.environ["YOUTUBE_URL"].strip()
-          u = urlparse(raw)
-          host = (u.hostname or "").lower()
-          allowed = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "www.youtu.be"}
-          if u.scheme != "https" or host not in allowed:
-              raise SystemExit("FAIL: URL must be an HTTPS YouTube URL")
-          print("URL validation: PASS")
-          PY
-
-      - name: Extract MP3
-        env:
-          YOUTUBE_URL: ${{ inputs.youtube_url }}
-=======
           GH_TOKEN: ${{ github.token }}
           MP3_TAG: ${{ inputs.mp3_tag }}
->>>>>>> f4edb9c (ci: consume MP3 from release instead of yt-dlp)
         run: |
           set -euo pipefail
           mkdir -p artifacts
