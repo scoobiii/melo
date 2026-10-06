@@ -1,14 +1,15 @@
-name: YouTube Audio -> MP3 -> MELO
+name: MP3 (release) -> MELO
 
 on:
   workflow_dispatch:
     inputs:
-      youtube_url:
-        description: "Authorized YouTube URL"
+      mp3_tag:
+        description: "Release tag containing the MP3 asset"
         required: true
+        default: "audio-v1"
         type: string
       run_melo:
-        description: "Run MELO validation/analysis after extraction"
+        description: "Run MELO validation/analysis"
         required: false
         default: true
         type: boolean
@@ -28,6 +29,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3
+<<<<<<< HEAD
           python3 -m pip install --disable-pip-version-check --upgrade yt-dlp
           yt-dlp --version
 
@@ -35,9 +37,12 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+=======
+>>>>>>> f4edb9c (ci: consume MP3 from release instead of yt-dlp)
 
-      - name: Validate YouTube URL
+      - name: Fetch MP3 from release
         env:
+<<<<<<< HEAD
           YOUTUBE_URL: ${{ inputs.youtube_url }}
         run: |
           set -euo pipefail
@@ -57,10 +62,18 @@ jobs:
       - name: Extract MP3
         env:
           YOUTUBE_URL: ${{ inputs.youtube_url }}
+=======
+          GH_TOKEN: ${{ github.token }}
+          MP3_TAG: ${{ inputs.mp3_tag }}
+>>>>>>> f4edb9c (ci: consume MP3 from release instead of yt-dlp)
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          yt-dlp             --no-playlist             --extract-audio             --audio-format mp3             --audio-quality 0             --output 'artifacts/%(id)s.%(ext)s'             "$YOUTUBE_URL"
+          gh release download "$MP3_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.mp3' \
+            --dir artifacts \
+            --clobber
 
       - name: Validate MP3 with ffprobe
         run: |
@@ -94,8 +107,12 @@ jobs:
           set -euo pipefail
           mkdir -p melo-input
           cp artifacts/*.mp3 melo-input/input.mp3
-          ffmpeg -y -hide_banner -loglevel error             -i melo-input/input.mp3             -ar 16000 -ac 1 -c:a pcm_s16le             melo-input/input.wav
-          ffprobe -v error -show_entries stream=codec_name,sample_rate,channels             -of default=nw=1 melo-input/input.wav
+          ffmpeg -y -hide_banner -loglevel error \
+            -i melo-input/input.mp3 \
+            -ar 16000 -ac 1 -c:a pcm_s16le \
+            melo-input/input.wav
+          ffprobe -v error -show_entries stream=codec_name,sample_rate,channels \
+            -of default=nw=1 melo-input/input.wav
 
       - name: Run MELO pipeline validation
         if: inputs.run_melo
@@ -107,7 +124,7 @@ jobs:
       - name: Upload MP3 and validation artifact
         uses: actions/upload-artifact@v4
         with:
-          name: melo-youtube-audio-${{ github.run_id }}
+          name: melo-audio-${{ github.run_id }}
           path: |
             artifacts/*.mp3
             artifacts/SHA256SUM
